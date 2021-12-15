@@ -30,6 +30,9 @@ const (
 
 	// NodePoolModeUser represents mode user for azuremachinepool.
 	NodePoolModeUser NodePoolMode = "User"
+
+	// DefaultScaleSetPriority represents the default scaleset priority.
+	DefaultScaleSetPriority string = "Regular"
 )
 
 // NodePoolMode enumerates the values for agent pool mode.
@@ -69,6 +72,11 @@ type AzureManagedMachinePoolSpec struct {
 	// MaxPods specifies the kubelet --max-pods configuration for the node pool.
 	// +optional
 	MaxPods *int32 `json:"maxPods,omitempty"`
+
+	// ScaleSetPriority specifies the virtual machine scale set priority. Default to regular. Possible values include: 'Spot', 'Regular'
+	// +kubebuilder:validation:Enum=Regular;Spot
+	// +optional
+	ScaleSetPriority *string `json:"scaleSetPriority,omitempty"`
 }
 
 // ManagedMachinePoolScaling specifies scaling options.

@@ -432,4 +432,7 @@ type AgentPoolSpec struct {
 
 	// MaxPods specifies the kubelet --max-pods configuration for the agent pool.
 	MaxPods *int32 `json:"maxPods,omitempty"`
+
+	// ScaleSetPriority specifies the virtual machine scale set priority. Default to regular. Possible values include: 'Spot', 'Regular'
+	ScaleSetPriority *string `json:"scaleSetPriority,omitempty"`
 }

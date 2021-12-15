@@ -281,6 +281,23 @@ spec:
   maxPods: 24
 ```
 
+### Add a spot node pool to an AKS cluster
+
+You can add a spot node pool to an AKS cluster which already have System nodepool. 
+
+The spot node pool must have the `User` mode.
+```
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: AzureManagedMachinePool
+metadata:
+  name: agentpool0
+spec:
+  mode: User
+  osDiskSizeGB: 512
+  sku: Standard_D2s_v3
+  scaleSetPriority: Spot
+```
+
 ### Use a public Standard Load Balancer
 
 A public Load Balancer when integrated with AKS serves two purposes:

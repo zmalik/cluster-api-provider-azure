@@ -549,6 +549,7 @@ func (s *ManagedControlPlaneScope) AgentPoolSpec() azure.AgentPoolSpec {
 		),
 		Mode:              s.InfraMachinePool.Spec.Mode,
 		AvailabilityZones: s.InfraMachinePool.Spec.AvailabilityZones,
+		ScaleSetPriority:  s.InfraMachinePool.Spec.ScaleSetPriority,
 	}
 
 	if s.InfraMachinePool.Spec.OSDiskSizeGB != nil {
