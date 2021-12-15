@@ -612,6 +612,7 @@ func buildAgentPoolSpec(managedControlPlane *infrav1exp.AzureManagedControlPlane
 		AvailabilityZones: managedMachinePool.Spec.AvailabilityZones,
 		OsDiskType:        managedMachinePool.Spec.OsDiskType,
 		EnableUltraSSD:    managedMachinePool.Spec.EnableUltraSSD,
+		ScaleSetPriority:  managedMachinePool.Spec.ScaleSetPriority,
 	}
 
 	if managedMachinePool.Spec.OSDiskSizeGB != nil {

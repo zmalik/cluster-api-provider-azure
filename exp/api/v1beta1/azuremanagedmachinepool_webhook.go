@@ -45,6 +45,10 @@ func (m *AzureManagedMachinePool) Default(client client.Client) {
 	if m.Spec.Name == nil || *m.Spec.Name == "" {
 		m.Spec.Name = &m.Name
 	}
+
+	if m.Spec.ScaleSetPriority == nil {
+		m.Spec.ScaleSetPriority = to.StringPtr(DefaultScaleSetPriority)
+	}
 }
 
 //+kubebuilder:webhook:verbs=update;delete,path=/validate-infrastructure-cluster-x-k8s-io-v1beta1-azuremanagedmachinepool,mutating=false,failurePolicy=fail,matchPolicy=Equivalent,groups=infrastructure.cluster.x-k8s.io,resources=azuremanagedmachinepools,versions=v1beta1,name=validation.azuremanagedmachinepools.infrastructure.cluster.x-k8s.io,sideEffects=None,admissionReviewVersions=v1;v1beta1
@@ -53,6 +57,7 @@ func (m *AzureManagedMachinePool) Default(client client.Client) {
 func (m *AzureManagedMachinePool) ValidateCreate(client client.Client) error {
 	validators := []func() error{
 		m.validateMaxPods,
+		m.ValidateSpotNodePool,
 	}
 
 	var errs []error
@@ -269,6 +274,17 @@ func (m *AzureManagedMachinePool) validateMaxPods() error {
 		}
 	}
 
+	return nil
+}
+
+func (m *AzureManagedMachinePool) ValidateSpotNodePool() error {
+	if m.Spec.ScaleSetPriority != nil && *m.Spec.ScaleSetPriority == "Spot" {
+		if m.Spec.Mode != string(NodePoolModeUser) {
+			return field.Forbidden(
+				field.NewPath("Spec", "ScaleSetPriority"),
+				"Spot ScaleSetPriority requires AzureManagedMachinePool mode User")
+		}
+	}
 	return nil
 }
 
