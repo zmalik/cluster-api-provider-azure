@@ -67,6 +67,10 @@ type AzureManagedMachinePoolSpec struct {
 	// +optional
 	NodeLabels map[string]*string `json:"nodeLabels,omitempty"`
 
+	// Taints specifies the taints for nodes present in this agent pool.
+	// +optional
+	Taints Taints `json:"taints,omitempty"`
+
 	// ProviderIDList is the unique identifier as specified by the cloud provider.
 	// +optional
 	ProviderIDList []string `json:"providerIDList,omitempty"`
@@ -96,6 +100,25 @@ type ManagedMachinePoolScaling struct {
 	MinSize *int32 `json:"minSize,omitempty"`
 	MaxSize *int32 `json:"maxSize,omitempty"`
 }
+
+// TaintEffect is the effect for a Kubernetes taint.
+type TaintEffect string
+
+type Taint struct {
+	// Effect specifies the effect for the taint
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Enum=NoSchedule;NoExecute;PreferNoSchedule
+	Effect TaintEffect `json:"effect"`
+	// Key is the key of the taint
+	// +kubebuilder:validation:Required
+	Key string `json:"key"`
+	// Value is the value of the taint
+	// +kubebuilder:validation:Required
+	Value string `json:"value"`
+}
+
+// Taints is an array of Taints.
+type Taints []Taint
 
 // AzureManagedMachinePoolStatus defines the observed state of AzureManagedMachinePool.
 type AzureManagedMachinePoolStatus struct {
