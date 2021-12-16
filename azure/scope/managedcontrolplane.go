@@ -570,6 +570,7 @@ func buildAgentPoolSpec(managedControlPlane *infrav1exp.AzureManagedControlPlane
 		MaxPods:           managedMachinePool.Spec.MaxPods,
 		AvailabilityZones: managedMachinePool.Spec.AvailabilityZones,
 		OsDiskType:        managedMachinePool.Spec.OsDiskType,
+		NodeLabels:        managedMachinePool.Spec.NodeLabels,
 	}
 
 	if managedMachinePool.Spec.OSDiskSizeGB != nil {
