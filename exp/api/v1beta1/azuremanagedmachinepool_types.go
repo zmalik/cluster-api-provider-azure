@@ -58,6 +58,10 @@ type AzureManagedMachinePoolSpec struct {
 	// +optional
 	AvailabilityZones []string `json:"availabilityZones,omitempty"`
 
+	// Taints specifies the taints for nodes present in this agent pool.
+	// +optional
+	Taints Taints `json:"taints,omitempty"`
+
 	// ProviderIDList is the unique identifier as specified by the cloud provider.
 	// +optional
 	ProviderIDList []string `json:"providerIDList,omitempty"`
@@ -76,6 +80,40 @@ type ManagedMachinePoolScaling struct {
 	MinSize *int32 `json:"minSize,omitempty"`
 	MaxSize *int32 `json:"maxSize,omitempty"`
 }
+
+// TaintEffect is the effect for a Kubernetes taint.
+type TaintEffect string
+
+var (
+	// TaintEffectNoSchedule  is a taint that does not allow new pods to schedule onto the node unless
+	// they tolerate the taint, but allow all pods submitted to Kubelet without going through the scheduler
+	// to start, and allow all already-running pods to continue running.
+	// Enforced by the scheduler.
+	TaintEffectNoSchedule = TaintEffect("no-schedule")
+	// TaintEffectNoExecute will evict any already-running pods that do not tolerate the taint.
+	// Currently enforced by NodeController.
+	TaintEffectNoExecute = TaintEffect("no-execute")
+	// TaintEffectPreferNoSchedule is Like TaintEffectNoSchedule, but the scheduler tries not to schedule
+	// new pods onto the node, rather than prohibiting new pods from scheduling
+	// onto the node entirely. Enforced by the scheduler.
+	TaintEffectPreferNoSchedule = TaintEffect("prefer-no-schedule")
+)
+
+type Taint struct {
+	// Effect specifies the effect for the taint
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Enum=no-schedule;no-execute;prefer-no-schedule
+	Effect TaintEffect `json:"effect"`
+	// Key is the key of the taint
+	// +kubebuilder:validation:Required
+	Key string `json:"key"`
+	// Value is the value of the taint
+	// +kubebuilder:validation:Required
+	Value string `json:"value"`
+}
+
+// Taints is an array of Taints.
+type Taints []Taint
 
 // AzureManagedMachinePoolStatus defines the observed state of AzureManagedMachinePool.
 type AzureManagedMachinePoolStatus struct {

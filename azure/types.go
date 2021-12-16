@@ -424,6 +424,9 @@ type AgentPoolSpec struct {
 	// Minimum number of nodes for auto-scaling
 	MinCount *int32 `json:"minCount,omitempty"`
 
+	// NodeTaints specifies the taints for nodes present in this agent pool.
+	NodeTaints []string `json:"nodeTaints,omitempty"`
+
 	// EnableAutoScaling - Whether to enable auto-scaler
 	EnableAutoScaling *bool `json:"enableAutoScaling,omitempty"`
 

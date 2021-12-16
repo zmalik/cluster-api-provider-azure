@@ -507,6 +507,14 @@ func (s *ManagedControlPlaneScope) GetAgentPoolSpecs(ctx context.Context) ([]azu
 			ammp.OSDiskSizeGB = *pool.Spec.OSDiskSizeGB
 		}
 
+		if len(s.InfraMachinePool.Spec.Taints) > 0 {
+			nodeTaints := make([]string, 0, len(s.InfraMachinePool.Spec.Taints))
+			for _, t := range s.InfraMachinePool.Spec.Taints {
+				nodeTaints = append(nodeTaints, fmt.Sprintf("%s=%s:%s", t.Key, t.Value, t.Effect))
+			}
+			ammp.NodeTaints = nodeTaints
+		}
+
 		if ownerPool.Spec.Replicas != nil {
 			ammp.Replicas = *ownerPool.Spec.Replicas
 		}
@@ -553,6 +561,14 @@ func (s *ManagedControlPlaneScope) AgentPoolSpec() azure.AgentPoolSpec {
 
 	if s.InfraMachinePool.Spec.OSDiskSizeGB != nil {
 		agentPoolSpec.OSDiskSizeGB = *s.InfraMachinePool.Spec.OSDiskSizeGB
+	}
+
+	if len(s.InfraMachinePool.Spec.Taints) > 0 {
+		nodeTaints := make([]string, 0, len(s.InfraMachinePool.Spec.Taints))
+		for _, t := range s.InfraMachinePool.Spec.Taints {
+			nodeTaints = append(nodeTaints, fmt.Sprintf("%s=%s:%s", t.Key, t.Value, t.Effect))
+		}
+		agentPoolSpec.NodeTaints = nodeTaints
 	}
 
 	if s.InfraMachinePool.Spec.Scaling != nil {
