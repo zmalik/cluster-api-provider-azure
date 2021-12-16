@@ -215,7 +215,6 @@ func (r *AzureManagedMachinePool) ValidateSpotNodePool() error {
 		if r.Spec.Mode != string(NodePoolModeUser) {
 			return field.Forbidden(
 				field.NewPath("Spec", "ScaleSetPriority"),
-				r.Spec.ScaleSetPriority,
 				"Spot ScaleSetPriority requires AzureManagedMachinePool mode User")
 		}
 	}
