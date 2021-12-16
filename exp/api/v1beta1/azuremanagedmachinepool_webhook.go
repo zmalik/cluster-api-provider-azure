@@ -213,7 +213,7 @@ func (r *AzureManagedMachinePool) validateMaxPods() error {
 func (r *AzureManagedMachinePool) ValidateSpotNodePool() error {
 	if r.Spec.ScaleSetPriority != nil && *r.Spec.ScaleSetPriority == "Spot" {
 		if r.Spec.Mode != string(NodePoolModeUser) {
-			return field.Invalid(
+			return field.Forbidden(
 				field.NewPath("Spec", "ScaleSetPriority"),
 				r.Spec.ScaleSetPriority,
 				"Spot ScaleSetPriority requires AzureManagedMachinePool mode User")
