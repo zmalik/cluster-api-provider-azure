@@ -263,7 +263,7 @@ spec:
     maxSize: 10
 ```
 
-### AKS Node Pool MaxPods configuration
+### AKS Node Labels to an Agent Pool
 
 You can configure the `NodeLabels` value for each AKS node pool (`AzureManagedMachinePool`) that you define in your spec.
 
