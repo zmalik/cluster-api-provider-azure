@@ -67,7 +67,7 @@ type AzureManagedMachinePoolSpec struct {
 	AvailabilityZones []string `json:"availabilityZones,omitempty"`
 
 	// Node labels - labels for all of the nodes present in node pool
-	NodeLabels map[string]*string `json:"NodeLabels,omitempty"`
+	NodeLabels map[string]*string `json:"nodeLabels,omitempty"`
 
 	// Taints specifies the taints for nodes present in this agent pool.
 	// +optional
