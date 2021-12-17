@@ -59,6 +59,11 @@ type AzureManagedMachinePoolSpec struct {
 	// +optional
 	OSDiskSizeGB *int32 `json:"osDiskSizeGB,omitempty"`
 
+	// AdditionalTags is an optional set of tags to add to Agentpool. In addition to the
+	// ones added by default.
+	// +optional
+	AdditionalTags map[string]*string `json:"additionalTags,omitempty"`
+
 	// AvailabilityZones - Availability zones for nodes. Must use VirtualMachineScaleSets AgentPoolType.
 	// +optional
 	AvailabilityZones []string `json:"availabilityZones,omitempty"`

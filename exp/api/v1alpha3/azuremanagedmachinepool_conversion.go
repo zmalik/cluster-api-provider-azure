@@ -45,6 +45,7 @@ func (src *AzureManagedMachinePool) ConvertTo(dstRaw conversion.Hub) error { // 
 	dst.Spec.OsDiskType = restored.Spec.OsDiskType
 	dst.Spec.NodeLabels = restored.Spec.NodeLabels
 	dst.Spec.ScaleSetPriority = restored.Spec.ScaleSetPriority
+	dst.Spec.AdditionalTags = restored.Spec.AdditionalTags
 
 	dst.Status.LongRunningOperationStates = restored.Status.LongRunningOperationStates
 	dst.Status.Conditions = restored.Status.Conditions

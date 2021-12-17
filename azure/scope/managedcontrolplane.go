@@ -523,6 +523,7 @@ func (s *ManagedControlPlaneScope) GetAgentPoolSpecs(ctx context.Context) ([]azu
 			OsDiskType:        pool.Spec.OsDiskType,
 			NodeLabels:        pool.Spec.NodeLabels,
 			ScaleSetPriority:  pool.Spec.ScaleSetPriority,
+			Tags:              pool.Spec.AdditionalTags,
 		}
 
 		// Set optional values
@@ -592,6 +593,7 @@ func (s *ManagedControlPlaneScope) AgentPoolSpec() azure.AgentPoolSpec {
 		OsDiskType:        s.InfraMachinePool.Spec.OsDiskType,
 		NodeLabels:        s.InfraMachinePool.Spec.NodeLabels,
 		ScaleSetPriority:  s.InfraMachinePool.Spec.ScaleSetPriority,
+		Tags:              s.InfraMachinePool.Spec.AdditionalTags,
 	}
 
 	if s.InfraMachinePool.Spec.OSDiskSizeGB != nil {
