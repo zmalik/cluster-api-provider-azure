@@ -81,6 +81,7 @@ func (s *Service) Reconcile(ctx context.Context) error {
 			AvailabilityZones:   &agentPoolSpec.AvailabilityZones,
 			MaxPods:             agentPoolSpec.MaxPods,
 			Tags:                agentPoolSpec.Tags,
+			NodeLabels:          agentPoolSpec.NodeLabels,
 		},
 	}
 
