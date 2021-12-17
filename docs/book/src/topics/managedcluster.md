@@ -305,6 +305,7 @@ spec:
 You can add a spot node pool to an AKS cluster which already have System nodepool. 
 
 The spot node pool must have the `User` mode.
+
 ```
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: AzureManagedMachinePool
@@ -315,6 +316,27 @@ spec:
   osDiskSizeGB: 512
   sku: Standard_D2s_v3
   scaleSetPriority: Spot
+```
+
+### AKS Node Pool Taints
+
+You can configure the `Taints` value for each AKS node pool (`AzureManagedMachinePool`) that you define in your spec.
+
+Below is an example of `taints` configuration for the `agentpool0`:
+
+```
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: AzureManagedMachinePool
+metadata:
+  name: agentpool0
+spec:
+  mode: System
+  osDiskSizeGB: 512
+  sku: Standard_D2s_v3
+  taints:
+    - effect: no-schedule
+      key: dedicated
+      value: kafka
 ```
 
 ### Use a public Standard Load Balancer
