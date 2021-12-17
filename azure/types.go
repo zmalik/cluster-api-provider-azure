@@ -432,4 +432,7 @@ type AgentPoolSpec struct {
 
 	// MaxPods specifies the kubelet --max-pods configuration for the agent pool.
 	MaxPods *int32 `json:"maxPods,omitempty"`
+
+	// Tags is a set of tags to add to this AgentPool.
+	Tags map[string]*string
 }

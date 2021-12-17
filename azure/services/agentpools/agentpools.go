@@ -80,6 +80,7 @@ func (s *Service) Reconcile(ctx context.Context) error {
 			MinCount:            agentPoolSpec.MinCount,
 			AvailabilityZones:   &agentPoolSpec.AvailabilityZones,
 			MaxPods:             agentPoolSpec.MaxPods,
+			Tags:                agentPoolSpec.Tags,
 		},
 	}
 
