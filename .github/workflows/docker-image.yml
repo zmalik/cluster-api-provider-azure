@@ -1,0 +1,22 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches: [ final-version ]
+  pull_request:
+    branches: [ final-version ]
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build the Docker image
+      run: make docker-build
+    - name: Tag the image
+      run: docker tag gcr.io/css-prod/cluster-api-azure-controller-amd64:dev zmalikshxil/cluster-api-azure-controller-amd64:preview
+    - name: Push the Docker image
+      run: docker push zmalikshxil/cluster-api-azure-controller-amd64:preview
