@@ -272,9 +272,9 @@ spec:
                     effect:
                       description: Effect specifies the effect for the taint
                       enum:
-                      - no-schedule
-                      - no-execute
-                      - prefer-no-schedule
+                      - NoSchedule
+                      - NoExecute
+                      - PreferNoSchedule
                       type: string
                     key:
                       description: Key is the key of the taint

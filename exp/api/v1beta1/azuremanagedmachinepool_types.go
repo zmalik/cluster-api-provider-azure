@@ -118,7 +118,7 @@ var (
 type Taint struct {
 	// Effect specifies the effect for the taint
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=no-schedule;no-execute;prefer-no-schedule
+	// +kubebuilder:validation:Enum=NoSchedule;NoExecute;PreferNoSchedule
 	Effect TaintEffect `json:"effect"`
 	// Key is the key of the taint
 	// +kubebuilder:validation:Required
