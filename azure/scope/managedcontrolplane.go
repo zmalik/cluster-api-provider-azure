@@ -508,9 +508,9 @@ func (s *ManagedControlPlaneScope) GetAgentPoolSpecs(ctx context.Context) ([]azu
 			ammp.OSDiskSizeGB = *pool.Spec.OSDiskSizeGB
 		}
 
-		if len(s.InfraMachinePool.Spec.Taints) > 0 {
-			nodeTaints := make([]string, 0, len(s.InfraMachinePool.Spec.Taints))
-			for _, t := range s.InfraMachinePool.Spec.Taints {
+		if len(pool.Spec.Taints) > 0 {
+			nodeTaints := make([]string, 0, len(pool.Spec.Taints))
+			for _, t := range pool.Spec.Taints {
 				nodeTaints = append(nodeTaints, fmt.Sprintf("%s=%s:%s", t.Key, t.Value, t.Effect))
 			}
 			ammp.NodeTaints = nodeTaints
