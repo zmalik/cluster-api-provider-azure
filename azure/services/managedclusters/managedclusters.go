@@ -243,6 +243,9 @@ func (s *Service) Reconcile(ctx context.Context) error {
 			AvailabilityZones:   &pool.AvailabilityZones,
 			MaxPods:             pool.MaxPods,
 			OrchestratorVersion: pool.Version,
+			Tags:                pool.Tags,
+			NodeLabels:          pool.NodeLabels,
+			NodeTaints:          &pool.NodeTaints,
 		}
 		*managedCluster.AgentPoolProfiles = append(*managedCluster.AgentPoolProfiles, profile)
 	}
