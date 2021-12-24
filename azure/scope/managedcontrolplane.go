@@ -500,6 +500,8 @@ func (s *ManagedControlPlaneScope) GetAgentPoolSpecs(ctx context.Context) ([]azu
 			Replicas:          1,
 			OSDiskSizeGB:      0,
 			Mode:              pool.Spec.Mode,
+			NodeLabels:        pool.Spec.NodeLabels,
+			MaxPods:           pool.Spec.MaxPods,
 			AvailabilityZones: pool.Spec.AvailabilityZones,
 		}
 
