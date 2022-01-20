@@ -24,6 +24,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/services/containerservice/mgmt/2021-05-01/containerservice"
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
+	"k8s.io/klog/v2"
+
 	infrav1alpha4 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/converters"
@@ -125,10 +127,16 @@ func (s *Service) Reconcile(ctx context.Context) error {
 			},
 		}
 
+		if profile.EnableAutoScaling != nil && *profile.EnableAutoScaling {
+			// unset the nodepool count if autoscaling is enabled
+			normalizedProfile.Count = nil
+			existingProfile.Count = nil
+		}
+
 		// Diff and check if we require an update
 		diff := cmp.Diff(normalizedProfile, existingProfile)
 		if diff != "" {
-			log.V(2).Info(fmt.Sprintf("Update required (+new -old):\n%s", diff))
+			klog.V(2).Info(fmt.Sprintf("Update required (+new -old):\n%s", diff))
 			err = s.Client.CreateOrUpdate(ctx, agentPoolSpec.ResourceGroup, agentPoolSpec.Cluster, agentPoolSpec.Name,
 				profile, customHeaders)
 			if err != nil {
