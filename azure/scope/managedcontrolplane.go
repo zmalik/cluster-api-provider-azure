@@ -120,6 +120,10 @@ type ManagedControlPlaneScope struct {
 	AllNodePools []infrav1exp.AzureManagedMachinePool
 }
 
+func (s *ManagedControlPlaneScope) AgentPoolAnnotations() map[string]string {
+	return s.InfraMachinePool.Annotations
+}
+
 // ResourceGroup returns the managed control plane's resource group.
 func (s *ManagedControlPlaneScope) ResourceGroup() string {
 	if s.ControlPlane == nil {
