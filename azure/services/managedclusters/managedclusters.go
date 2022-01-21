@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/services/containerservice/mgmt/2021-05-01/containerservice"
@@ -43,6 +44,7 @@ var (
 // ManagedClusterScope defines the scope interface for a managed cluster.
 type ManagedClusterScope interface {
 	azure.ClusterDescriber
+	ManagedClusterAnnotations() map[string]string
 	ManagedClusterSpec() (azure.ManagedClusterSpec, error)
 	GetAgentPoolSpecs(ctx context.Context) ([]azure.AgentPoolSpec, error)
 	SetControlPlaneEndpoint(clusterv1.APIEndpoint)
@@ -293,8 +295,9 @@ func (s *Service) Reconcile(ctx context.Context) error {
 		}
 	}
 
+	customHeaders := s.getCustomHeaders()
 	if isCreate {
-		managedCluster, err = s.Client.CreateOrUpdate(ctx, managedClusterSpec.ResourceGroupName, managedClusterSpec.Name, managedCluster)
+		managedCluster, err = s.Client.CreateOrUpdate(ctx, managedClusterSpec.ResourceGroupName, managedClusterSpec.Name, managedCluster, customHeaders)
 		if err != nil {
 			return fmt.Errorf("failed to create managed cluster, %w", err)
 		}
@@ -323,7 +326,7 @@ func (s *Service) Reconcile(ctx context.Context) error {
 		diff := computeDiffOfNormalizedClusters(managedCluster, existingMC)
 		if diff != "" {
 			klog.V(2).Infof("Update required (+new -old):\n%s", diff)
-			managedCluster, err = s.Client.CreateOrUpdate(ctx, managedClusterSpec.ResourceGroupName, managedClusterSpec.Name, managedCluster)
+			managedCluster, err = s.Client.CreateOrUpdate(ctx, managedClusterSpec.ResourceGroupName, managedClusterSpec.Name, managedCluster, customHeaders)
 			if err != nil {
 				return fmt.Errorf("failed to update managed cluster, %w", err)
 			}
@@ -367,4 +370,15 @@ func (s *Service) Delete(ctx context.Context) error {
 
 	klog.V(2).Infof("successfully deleted managed cluster %s ", s.Scope.ClusterName())
 	return nil
+}
+
+// get custom headers that will be passed to the client from control plane annotations.
+func (s *Service) getCustomHeaders() map[string]string {
+	var result = map[string]string{}
+	for key, value := range s.Scope.ManagedClusterAnnotations() {
+		if strings.HasPrefix(key, azure.CustomHeaderPrefix) {
+			result[strings.TrimPrefix(key, azure.CustomHeaderPrefix)] = value
+		}
+	}
+	return result
 }
