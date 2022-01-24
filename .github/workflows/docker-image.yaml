@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Build the Docker image
-        run: make docker-build
+        run: CONTROLLER_IMG=gcr.io/cluster-api-azure-controller make docker-build
       - name: Tag the image
         run: docker tag gcr.io/cluster-api-azure-controller-amd64:dev zmalikshxil/cluster-api-azure-controller-amd64:$(git log -1 --format=%h)
       - name: Docker login
