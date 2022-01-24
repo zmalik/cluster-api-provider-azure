@@ -24,10 +24,10 @@ import (
 	reflect "reflect"
 
 	autorest "github.com/Azure/go-autorest/autorest"
-	logr "github.com/go-logr/logr"
 	gomock "github.com/golang/mock/gomock"
 	v1beta1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	azure "sigs.k8s.io/cluster-api-provider-azure/azure"
+	v1beta10 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
 // MockInboundNatScope is a mock of InboundNatScope interface.
@@ -51,6 +51,20 @@ func NewMockInboundNatScope(ctrl *gomock.Controller) *MockInboundNatScope {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockInboundNatScope) EXPECT() *MockInboundNatScopeMockRecorder {
 	return m.recorder
+}
+
+// APIServerLBName mocks base method.
+func (m *MockInboundNatScope) APIServerLBName() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "APIServerLBName")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// APIServerLBName indicates an expected call of APIServerLBName.
+func (mr *MockInboundNatScopeMockRecorder) APIServerLBName() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "APIServerLBName", reflect.TypeOf((*MockInboundNatScope)(nil).APIServerLBName))
 }
 
 // AdditionalTags mocks base method.
@@ -179,35 +193,16 @@ func (mr *MockInboundNatScopeMockRecorder) ClusterName() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClusterName", reflect.TypeOf((*MockInboundNatScope)(nil).ClusterName))
 }
 
-// Enabled mocks base method.
-func (m *MockInboundNatScope) Enabled() bool {
+// DeleteLongRunningOperationState mocks base method.
+func (m *MockInboundNatScope) DeleteLongRunningOperationState(arg0, arg1 string) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Enabled")
-	ret0, _ := ret[0].(bool)
-	return ret0
+	m.ctrl.Call(m, "DeleteLongRunningOperationState", arg0, arg1)
 }
 
-// Enabled indicates an expected call of Enabled.
-func (mr *MockInboundNatScopeMockRecorder) Enabled() *gomock.Call {
+// DeleteLongRunningOperationState indicates an expected call of DeleteLongRunningOperationState.
+func (mr *MockInboundNatScopeMockRecorder) DeleteLongRunningOperationState(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Enabled", reflect.TypeOf((*MockInboundNatScope)(nil).Enabled))
-}
-
-// Error mocks base method.
-func (m *MockInboundNatScope) Error(err error, msg string, keysAndValues ...interface{}) {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{err, msg}
-	for _, a := range keysAndValues {
-		varargs = append(varargs, a)
-	}
-	m.ctrl.Call(m, "Error", varargs...)
-}
-
-// Error indicates an expected call of Error.
-func (mr *MockInboundNatScopeMockRecorder) Error(err, msg interface{}, keysAndValues ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{err, msg}, keysAndValues...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Error", reflect.TypeOf((*MockInboundNatScope)(nil).Error), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteLongRunningOperationState", reflect.TypeOf((*MockInboundNatScope)(nil).DeleteLongRunningOperationState), arg0, arg1)
 }
 
 // FailureDomains mocks base method.
@@ -222,6 +217,20 @@ func (m *MockInboundNatScope) FailureDomains() []string {
 func (mr *MockInboundNatScopeMockRecorder) FailureDomains() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FailureDomains", reflect.TypeOf((*MockInboundNatScope)(nil).FailureDomains))
+}
+
+// GetLongRunningOperationState mocks base method.
+func (m *MockInboundNatScope) GetLongRunningOperationState(arg0, arg1 string) *v1beta1.Future {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLongRunningOperationState", arg0, arg1)
+	ret0, _ := ret[0].(*v1beta1.Future)
+	return ret0
+}
+
+// GetLongRunningOperationState indicates an expected call of GetLongRunningOperationState.
+func (mr *MockInboundNatScopeMockRecorder) GetLongRunningOperationState(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLongRunningOperationState", reflect.TypeOf((*MockInboundNatScope)(nil).GetLongRunningOperationState), arg0, arg1)
 }
 
 // HashKey mocks base method.
@@ -239,34 +248,17 @@ func (mr *MockInboundNatScopeMockRecorder) HashKey() *gomock.Call {
 }
 
 // InboundNatSpecs mocks base method.
-func (m *MockInboundNatScope) InboundNatSpecs() []azure.InboundNatSpec {
+func (m *MockInboundNatScope) InboundNatSpecs(arg0 map[int32]struct{}) []azure.ResourceSpecGetter {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InboundNatSpecs")
-	ret0, _ := ret[0].([]azure.InboundNatSpec)
+	ret := m.ctrl.Call(m, "InboundNatSpecs", arg0)
+	ret0, _ := ret[0].([]azure.ResourceSpecGetter)
 	return ret0
 }
 
 // InboundNatSpecs indicates an expected call of InboundNatSpecs.
-func (mr *MockInboundNatScopeMockRecorder) InboundNatSpecs() *gomock.Call {
+func (mr *MockInboundNatScopeMockRecorder) InboundNatSpecs(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InboundNatSpecs", reflect.TypeOf((*MockInboundNatScope)(nil).InboundNatSpecs))
-}
-
-// Info mocks base method.
-func (m *MockInboundNatScope) Info(msg string, keysAndValues ...interface{}) {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{msg}
-	for _, a := range keysAndValues {
-		varargs = append(varargs, a)
-	}
-	m.ctrl.Call(m, "Info", varargs...)
-}
-
-// Info indicates an expected call of Info.
-func (mr *MockInboundNatScopeMockRecorder) Info(msg interface{}, keysAndValues ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{msg}, keysAndValues...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Info", reflect.TypeOf((*MockInboundNatScope)(nil).Info), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InboundNatSpecs", reflect.TypeOf((*MockInboundNatScope)(nil).InboundNatSpecs), arg0)
 }
 
 // Location mocks base method.
@@ -297,6 +289,18 @@ func (mr *MockInboundNatScopeMockRecorder) ResourceGroup() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResourceGroup", reflect.TypeOf((*MockInboundNatScope)(nil).ResourceGroup))
 }
 
+// SetLongRunningOperationState mocks base method.
+func (m *MockInboundNatScope) SetLongRunningOperationState(arg0 *v1beta1.Future) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetLongRunningOperationState", arg0)
+}
+
+// SetLongRunningOperationState indicates an expected call of SetLongRunningOperationState.
+func (mr *MockInboundNatScopeMockRecorder) SetLongRunningOperationState(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLongRunningOperationState", reflect.TypeOf((*MockInboundNatScope)(nil).SetLongRunningOperationState), arg0)
+}
+
 // SubscriptionID mocks base method.
 func (m *MockInboundNatScope) SubscriptionID() string {
 	m.ctrl.T.Helper()
@@ -325,48 +329,38 @@ func (mr *MockInboundNatScopeMockRecorder) TenantID() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TenantID", reflect.TypeOf((*MockInboundNatScope)(nil).TenantID))
 }
 
-// V mocks base method.
-func (m *MockInboundNatScope) V(level int) logr.Logger {
+// UpdateDeleteStatus mocks base method.
+func (m *MockInboundNatScope) UpdateDeleteStatus(arg0 v1beta10.ConditionType, arg1 string, arg2 error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "V", level)
-	ret0, _ := ret[0].(logr.Logger)
-	return ret0
+	m.ctrl.Call(m, "UpdateDeleteStatus", arg0, arg1, arg2)
 }
 
-// V indicates an expected call of V.
-func (mr *MockInboundNatScopeMockRecorder) V(level interface{}) *gomock.Call {
+// UpdateDeleteStatus indicates an expected call of UpdateDeleteStatus.
+func (mr *MockInboundNatScopeMockRecorder) UpdateDeleteStatus(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "V", reflect.TypeOf((*MockInboundNatScope)(nil).V), level)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateDeleteStatus", reflect.TypeOf((*MockInboundNatScope)(nil).UpdateDeleteStatus), arg0, arg1, arg2)
 }
 
-// WithName mocks base method.
-func (m *MockInboundNatScope) WithName(name string) logr.Logger {
+// UpdatePatchStatus mocks base method.
+func (m *MockInboundNatScope) UpdatePatchStatus(arg0 v1beta10.ConditionType, arg1 string, arg2 error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WithName", name)
-	ret0, _ := ret[0].(logr.Logger)
-	return ret0
+	m.ctrl.Call(m, "UpdatePatchStatus", arg0, arg1, arg2)
 }
 
-// WithName indicates an expected call of WithName.
-func (mr *MockInboundNatScopeMockRecorder) WithName(name interface{}) *gomock.Call {
+// UpdatePatchStatus indicates an expected call of UpdatePatchStatus.
+func (mr *MockInboundNatScopeMockRecorder) UpdatePatchStatus(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WithName", reflect.TypeOf((*MockInboundNatScope)(nil).WithName), name)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePatchStatus", reflect.TypeOf((*MockInboundNatScope)(nil).UpdatePatchStatus), arg0, arg1, arg2)
 }
 
-// WithValues mocks base method.
-func (m *MockInboundNatScope) WithValues(keysAndValues ...interface{}) logr.Logger {
+// UpdatePutStatus mocks base method.
+func (m *MockInboundNatScope) UpdatePutStatus(arg0 v1beta10.ConditionType, arg1 string, arg2 error) {
 	m.ctrl.T.Helper()
-	varargs := []interface{}{}
-	for _, a := range keysAndValues {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "WithValues", varargs...)
-	ret0, _ := ret[0].(logr.Logger)
-	return ret0
+	m.ctrl.Call(m, "UpdatePutStatus", arg0, arg1, arg2)
 }
 
-// WithValues indicates an expected call of WithValues.
-func (mr *MockInboundNatScopeMockRecorder) WithValues(keysAndValues ...interface{}) *gomock.Call {
+// UpdatePutStatus indicates an expected call of UpdatePutStatus.
+func (mr *MockInboundNatScopeMockRecorder) UpdatePutStatus(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WithValues", reflect.TypeOf((*MockInboundNatScope)(nil).WithValues), keysAndValues...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePutStatus", reflect.TypeOf((*MockInboundNatScope)(nil).UpdatePutStatus), arg0, arg1, arg2)
 }

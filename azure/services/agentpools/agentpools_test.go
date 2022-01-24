@@ -27,14 +27,13 @@ import (
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	capi "sigs.k8s.io/cluster-api/api/v1beta1"
-	capiexp "sigs.k8s.io/cluster-api/exp/api/v1beta1"
-
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/scope"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/services/agentpools/mock_agentpools"
 	infraexpv1 "sigs.k8s.io/cluster-api-provider-azure/exp/api/v1beta1"
 	gomockinternal "sigs.k8s.io/cluster-api-provider-azure/internal/test/matchers/gomock"
+	capi "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiexp "sigs.k8s.io/cluster-api/exp/api/v1beta1"
 )
 
 func TestReconcile(t *testing.T) {
@@ -55,9 +54,10 @@ func TestReconcile(t *testing.T) {
 			provisioningStatesToTest: []string{"Canceled", "Succeeded", "Failed"},
 			expectedError:            "",
 			expect: func(m *mock_agentpools.MockClientMockRecorder, provisioningstate string) {
+				pv := provisioningstate
 				m.CreateOrUpdate(gomockinternal.AContext(), "my-rg", "my-cluster", "my-agentpool", gomock.Any()).Return(nil)
 				m.Get(gomockinternal.AContext(), "my-rg", "my-cluster", "my-agentpool").Return(containerservice.AgentPool{ManagedClusterAgentPoolProfileProperties: &containerservice.ManagedClusterAgentPoolProfileProperties{
-					ProvisioningState: &provisioningstate,
+					ProvisioningState: &pv,
 				}}, nil)
 			},
 		},
@@ -69,7 +69,7 @@ func TestReconcile(t *testing.T) {
 				Name:          "my-agentpool",
 			},
 			provisioningStatesToTest: []string{"Deleting", "InProgress", "randomStringHere"},
-			expectedError:            "Unable to update existing agent pool in non terminal state. Agent pool must be in one of the following provisioning states: canceled, failed, or succeeded. Actual state: randomStringHere",
+			expectedError:            "Unable to update existing agent pool in non terminal state. Agent pool must be in one of the following provisioning states: canceled, failed, or succeeded. Actual state:",
 			expect: func(m *mock_agentpools.MockClientMockRecorder, provisioningstate string) {
 				m.Get(gomockinternal.AContext(), "my-rg", "my-cluster", "my-agentpool").Return(containerservice.AgentPool{ManagedClusterAgentPoolProfileProperties: &containerservice.ManagedClusterAgentPoolProfileProperties{
 					ProvisioningState: &provisioningstate,
@@ -80,8 +80,9 @@ func TestReconcile(t *testing.T) {
 
 	for _, tc := range provisioningstatetestcases {
 		for _, provisioningstate := range tc.provisioningStatesToTest {
-			t.Logf("Testing agentpool provision state: " + provisioningstate)
 			tc := tc
+			provisioningstate := provisioningstate
+			t.Logf("Testing agentpool provision state: " + provisioningstate)
 			t.Run(tc.name, func(t *testing.T) {
 				g := NewWithT(t)
 				t.Parallel()
@@ -119,7 +120,7 @@ func TestReconcile(t *testing.T) {
 
 				err := s.Reconcile(context.TODO())
 				if tc.expectedError != "" {
-					g.Expect(err.Error()).To(HavePrefix(tc.expectedError))
+					g.Expect(err.Error()).To(ContainSubstring(tc.expectedError))
 					g.Expect(err.Error()).To(ContainSubstring(provisioningstate))
 				} else {
 					g.Expect(err).NotTo(HaveOccurred())
@@ -157,6 +158,8 @@ func TestReconcile(t *testing.T) {
 				Version:       to.StringPtr("9.99.9999"),
 				Replicas:      2,
 				OSDiskSizeGB:  100,
+				MaxPods:       to.Int32Ptr(12),
+				OsDiskType:    to.StringPtr(string(containerservice.OSDiskTypeManaged)),
 			},
 			expectedError: "failed to get existing agent pool: #: Internal Server Error: StatusCode=500",
 			expect: func(m *mock_agentpools.MockClientMockRecorder) {
@@ -173,6 +176,8 @@ func TestReconcile(t *testing.T) {
 				Version:       to.StringPtr("9.99.9999"),
 				Replicas:      2,
 				OSDiskSizeGB:  100,
+				MaxPods:       to.Int32Ptr(12),
+				OsDiskType:    to.StringPtr(string(containerservice.OSDiskTypeManaged)),
 			},
 			expectedError: "",
 			expect: func(m *mock_agentpools.MockClientMockRecorder) {
@@ -190,6 +195,8 @@ func TestReconcile(t *testing.T) {
 				Version:       to.StringPtr("9.99.9999"),
 				Replicas:      2,
 				OSDiskSizeGB:  100,
+				MaxPods:       to.Int32Ptr(12),
+				OsDiskType:    to.StringPtr(string(containerservice.OSDiskTypeManaged)),
 			},
 			expectedError: "failed to create or update agent pool: #: Internal Server Error: StatusCode=500",
 			expect: func(m *mock_agentpools.MockClientMockRecorder) {
@@ -207,6 +214,8 @@ func TestReconcile(t *testing.T) {
 				Version:       to.StringPtr("9.99.9999"),
 				Replicas:      2,
 				OSDiskSizeGB:  100,
+				MaxPods:       to.Int32Ptr(12),
+				OsDiskType:    to.StringPtr(string(containerservice.OSDiskTypeManaged)),
 			},
 			expectedError: "failed to create or update agent pool: #: Internal Server Error: StatusCode=500",
 			expect: func(m *mock_agentpools.MockClientMockRecorder) {
@@ -232,6 +241,8 @@ func TestReconcile(t *testing.T) {
 				Version:       to.StringPtr("9.99.9999"),
 				Replicas:      2,
 				OSDiskSizeGB:  100,
+				MaxPods:       to.Int32Ptr(12),
+				OsDiskType:    to.StringPtr(string(containerservice.OSDiskTypeEphemeral)),
 			},
 			expectedError: "",
 			expect: func(m *mock_agentpools.MockClientMockRecorder) {
@@ -244,6 +255,8 @@ func TestReconcile(t *testing.T) {
 						OrchestratorVersion: to.StringPtr("9.99.9999"),
 						ProvisioningState:   to.StringPtr("Succeeded"),
 						VnetSubnetID:        to.StringPtr(""),
+						MaxPods:             to.Int32Ptr(12),
+						OsDiskType:          containerservice.OSDiskTypeEphemeral,
 					},
 				}, nil)
 			},
@@ -290,6 +303,8 @@ func TestReconcile(t *testing.T) {
 						Name:         &tc.agentPoolsSpec.Name,
 						SKU:          tc.agentPoolsSpec.SKU,
 						OSDiskSizeGB: &osDiskSizeGB,
+						MaxPods:      to.Int32Ptr(12),
+						OsDiskType:   to.StringPtr(string(containerservice.OSDiskTypeManaged)),
 					},
 				},
 			}

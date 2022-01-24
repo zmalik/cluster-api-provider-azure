@@ -23,19 +23,15 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+# Install kubectl
 REPO_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
-cd "${REPO_ROOT}" || exit 1
+KUBECTL="${REPO_ROOT}/hack/tools/bin/kubectl"
+cd "${REPO_ROOT}" && make "${KUBECTL##*/}"
 
 # shellcheck source=hack/ensure-go.sh
 source "${REPO_ROOT}/hack/ensure-go.sh"
 # shellcheck source=hack/ensure-kind.sh
 source "${REPO_ROOT}/hack/ensure-kind.sh"
-
-# check installation of kubectl
-mkdir -p "${REPO_ROOT}/hack/tools/bin"
-KUBECTL=$(realpath hack/tools/bin/kubectl)
-make "${KUBECTL}" &>/dev/null
-
 # shellcheck source=hack/ensure-kustomize.sh
 source "${REPO_ROOT}/hack/ensure-kustomize.sh"
 # shellcheck source=hack/ensure-tags.sh
@@ -89,6 +85,10 @@ if [ -z "${AZURE_SSH_PUBLIC_KEY_FILE}" ]; then
 fi
 AZURE_SSH_PUBLIC_KEY_B64=$(base64 "${AZURE_SSH_PUBLIC_KEY_FILE}" | tr -d '\r\n')
 export AZURE_SSH_PUBLIC_KEY_B64
+
+# Windows sets the public key via cloudbase-init which take the raw text as input
+AZURE_SSH_PUBLIC_KEY=$(< "${AZURE_SSH_PUBLIC_KEY_FILE}" tr -d '\r\n')
+export AZURE_SSH_PUBLIC_KEY
 
 cleanup() {
     "${REPO_ROOT}/hack/log/redact.sh" || true

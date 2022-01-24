@@ -24,9 +24,10 @@ import (
 	reflect "reflect"
 
 	autorest "github.com/Azure/go-autorest/autorest"
-	logr "github.com/go-logr/logr"
 	gomock "github.com/golang/mock/gomock"
 	v1beta1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
+	azure "sigs.k8s.io/cluster-api-provider-azure/azure"
+	v1beta10 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
 // MockAvailabilitySetScope is a mock of AvailabilitySetScope interface.
@@ -80,21 +81,6 @@ func (mr *MockAvailabilitySetScopeMockRecorder) Authorizer() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Authorizer", reflect.TypeOf((*MockAvailabilitySetScope)(nil).Authorizer))
 }
 
-// AvailabilitySet mocks base method.
-func (m *MockAvailabilitySetScope) AvailabilitySet() (string, bool) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AvailabilitySet")
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(bool)
-	return ret0, ret1
-}
-
-// AvailabilitySet indicates an expected call of AvailabilitySet.
-func (mr *MockAvailabilitySetScopeMockRecorder) AvailabilitySet() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AvailabilitySet", reflect.TypeOf((*MockAvailabilitySetScope)(nil).AvailabilitySet))
-}
-
 // AvailabilitySetEnabled mocks base method.
 func (m *MockAvailabilitySetScope) AvailabilitySetEnabled() bool {
 	m.ctrl.T.Helper()
@@ -107,6 +93,20 @@ func (m *MockAvailabilitySetScope) AvailabilitySetEnabled() bool {
 func (mr *MockAvailabilitySetScopeMockRecorder) AvailabilitySetEnabled() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AvailabilitySetEnabled", reflect.TypeOf((*MockAvailabilitySetScope)(nil).AvailabilitySetEnabled))
+}
+
+// AvailabilitySetSpec mocks base method.
+func (m *MockAvailabilitySetScope) AvailabilitySetSpec() azure.ResourceSpecGetter {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AvailabilitySetSpec")
+	ret0, _ := ret[0].(azure.ResourceSpecGetter)
+	return ret0
+}
+
+// AvailabilitySetSpec indicates an expected call of AvailabilitySetSpec.
+func (mr *MockAvailabilitySetScopeMockRecorder) AvailabilitySetSpec() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AvailabilitySetSpec", reflect.TypeOf((*MockAvailabilitySetScope)(nil).AvailabilitySetSpec))
 }
 
 // BaseURI mocks base method.
@@ -193,35 +193,16 @@ func (mr *MockAvailabilitySetScopeMockRecorder) ClusterName() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClusterName", reflect.TypeOf((*MockAvailabilitySetScope)(nil).ClusterName))
 }
 
-// Enabled mocks base method.
-func (m *MockAvailabilitySetScope) Enabled() bool {
+// DeleteLongRunningOperationState mocks base method.
+func (m *MockAvailabilitySetScope) DeleteLongRunningOperationState(arg0, arg1 string) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Enabled")
-	ret0, _ := ret[0].(bool)
-	return ret0
+	m.ctrl.Call(m, "DeleteLongRunningOperationState", arg0, arg1)
 }
 
-// Enabled indicates an expected call of Enabled.
-func (mr *MockAvailabilitySetScopeMockRecorder) Enabled() *gomock.Call {
+// DeleteLongRunningOperationState indicates an expected call of DeleteLongRunningOperationState.
+func (mr *MockAvailabilitySetScopeMockRecorder) DeleteLongRunningOperationState(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Enabled", reflect.TypeOf((*MockAvailabilitySetScope)(nil).Enabled))
-}
-
-// Error mocks base method.
-func (m *MockAvailabilitySetScope) Error(err error, msg string, keysAndValues ...interface{}) {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{err, msg}
-	for _, a := range keysAndValues {
-		varargs = append(varargs, a)
-	}
-	m.ctrl.Call(m, "Error", varargs...)
-}
-
-// Error indicates an expected call of Error.
-func (mr *MockAvailabilitySetScopeMockRecorder) Error(err, msg interface{}, keysAndValues ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{err, msg}, keysAndValues...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Error", reflect.TypeOf((*MockAvailabilitySetScope)(nil).Error), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteLongRunningOperationState", reflect.TypeOf((*MockAvailabilitySetScope)(nil).DeleteLongRunningOperationState), arg0, arg1)
 }
 
 // FailureDomains mocks base method.
@@ -238,6 +219,20 @@ func (mr *MockAvailabilitySetScopeMockRecorder) FailureDomains() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FailureDomains", reflect.TypeOf((*MockAvailabilitySetScope)(nil).FailureDomains))
 }
 
+// GetLongRunningOperationState mocks base method.
+func (m *MockAvailabilitySetScope) GetLongRunningOperationState(arg0, arg1 string) *v1beta1.Future {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLongRunningOperationState", arg0, arg1)
+	ret0, _ := ret[0].(*v1beta1.Future)
+	return ret0
+}
+
+// GetLongRunningOperationState indicates an expected call of GetLongRunningOperationState.
+func (mr *MockAvailabilitySetScopeMockRecorder) GetLongRunningOperationState(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLongRunningOperationState", reflect.TypeOf((*MockAvailabilitySetScope)(nil).GetLongRunningOperationState), arg0, arg1)
+}
+
 // HashKey mocks base method.
 func (m *MockAvailabilitySetScope) HashKey() string {
 	m.ctrl.T.Helper()
@@ -250,23 +245,6 @@ func (m *MockAvailabilitySetScope) HashKey() string {
 func (mr *MockAvailabilitySetScopeMockRecorder) HashKey() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HashKey", reflect.TypeOf((*MockAvailabilitySetScope)(nil).HashKey))
-}
-
-// Info mocks base method.
-func (m *MockAvailabilitySetScope) Info(msg string, keysAndValues ...interface{}) {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{msg}
-	for _, a := range keysAndValues {
-		varargs = append(varargs, a)
-	}
-	m.ctrl.Call(m, "Info", varargs...)
-}
-
-// Info indicates an expected call of Info.
-func (mr *MockAvailabilitySetScopeMockRecorder) Info(msg interface{}, keysAndValues ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{msg}, keysAndValues...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Info", reflect.TypeOf((*MockAvailabilitySetScope)(nil).Info), varargs...)
 }
 
 // Location mocks base method.
@@ -297,6 +275,18 @@ func (mr *MockAvailabilitySetScopeMockRecorder) ResourceGroup() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResourceGroup", reflect.TypeOf((*MockAvailabilitySetScope)(nil).ResourceGroup))
 }
 
+// SetLongRunningOperationState mocks base method.
+func (m *MockAvailabilitySetScope) SetLongRunningOperationState(arg0 *v1beta1.Future) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetLongRunningOperationState", arg0)
+}
+
+// SetLongRunningOperationState indicates an expected call of SetLongRunningOperationState.
+func (mr *MockAvailabilitySetScopeMockRecorder) SetLongRunningOperationState(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLongRunningOperationState", reflect.TypeOf((*MockAvailabilitySetScope)(nil).SetLongRunningOperationState), arg0)
+}
+
 // SubscriptionID mocks base method.
 func (m *MockAvailabilitySetScope) SubscriptionID() string {
 	m.ctrl.T.Helper()
@@ -325,48 +315,38 @@ func (mr *MockAvailabilitySetScopeMockRecorder) TenantID() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TenantID", reflect.TypeOf((*MockAvailabilitySetScope)(nil).TenantID))
 }
 
-// V mocks base method.
-func (m *MockAvailabilitySetScope) V(level int) logr.Logger {
+// UpdateDeleteStatus mocks base method.
+func (m *MockAvailabilitySetScope) UpdateDeleteStatus(arg0 v1beta10.ConditionType, arg1 string, arg2 error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "V", level)
-	ret0, _ := ret[0].(logr.Logger)
-	return ret0
+	m.ctrl.Call(m, "UpdateDeleteStatus", arg0, arg1, arg2)
 }
 
-// V indicates an expected call of V.
-func (mr *MockAvailabilitySetScopeMockRecorder) V(level interface{}) *gomock.Call {
+// UpdateDeleteStatus indicates an expected call of UpdateDeleteStatus.
+func (mr *MockAvailabilitySetScopeMockRecorder) UpdateDeleteStatus(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "V", reflect.TypeOf((*MockAvailabilitySetScope)(nil).V), level)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateDeleteStatus", reflect.TypeOf((*MockAvailabilitySetScope)(nil).UpdateDeleteStatus), arg0, arg1, arg2)
 }
 
-// WithName mocks base method.
-func (m *MockAvailabilitySetScope) WithName(name string) logr.Logger {
+// UpdatePatchStatus mocks base method.
+func (m *MockAvailabilitySetScope) UpdatePatchStatus(arg0 v1beta10.ConditionType, arg1 string, arg2 error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WithName", name)
-	ret0, _ := ret[0].(logr.Logger)
-	return ret0
+	m.ctrl.Call(m, "UpdatePatchStatus", arg0, arg1, arg2)
 }
 
-// WithName indicates an expected call of WithName.
-func (mr *MockAvailabilitySetScopeMockRecorder) WithName(name interface{}) *gomock.Call {
+// UpdatePatchStatus indicates an expected call of UpdatePatchStatus.
+func (mr *MockAvailabilitySetScopeMockRecorder) UpdatePatchStatus(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WithName", reflect.TypeOf((*MockAvailabilitySetScope)(nil).WithName), name)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePatchStatus", reflect.TypeOf((*MockAvailabilitySetScope)(nil).UpdatePatchStatus), arg0, arg1, arg2)
 }
 
-// WithValues mocks base method.
-func (m *MockAvailabilitySetScope) WithValues(keysAndValues ...interface{}) logr.Logger {
+// UpdatePutStatus mocks base method.
+func (m *MockAvailabilitySetScope) UpdatePutStatus(arg0 v1beta10.ConditionType, arg1 string, arg2 error) {
 	m.ctrl.T.Helper()
-	varargs := []interface{}{}
-	for _, a := range keysAndValues {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "WithValues", varargs...)
-	ret0, _ := ret[0].(logr.Logger)
-	return ret0
+	m.ctrl.Call(m, "UpdatePutStatus", arg0, arg1, arg2)
 }
 
-// WithValues indicates an expected call of WithValues.
-func (mr *MockAvailabilitySetScopeMockRecorder) WithValues(keysAndValues ...interface{}) *gomock.Call {
+// UpdatePutStatus indicates an expected call of UpdatePutStatus.
+func (mr *MockAvailabilitySetScopeMockRecorder) UpdatePutStatus(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WithValues", reflect.TypeOf((*MockAvailabilitySetScope)(nil).WithValues), keysAndValues...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePutStatus", reflect.TypeOf((*MockAvailabilitySetScope)(nil).UpdatePutStatus), arg0, arg1, arg2)
 }

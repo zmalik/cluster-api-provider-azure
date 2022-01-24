@@ -19,27 +19,21 @@ package v1beta1
 import (
 	"context"
 
+	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
-
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
-
-// log is for logging in this package.
-var azuremanagedmachinepoollog = logf.Log.WithName("azuremanagedmachinepool-resource")
 
 //+kubebuilder:webhook:path=/mutate-infrastructure-cluster-x-k8s-io-v1beta1-azuremanagedmachinepool,mutating=true,failurePolicy=fail,matchPolicy=Equivalent,groups=infrastructure.cluster.x-k8s.io,resources=azuremanagedmachinepools,verbs=create;update,versions=v1beta1,name=default.azuremanagedmachinepools.infrastructure.cluster.x-k8s.io,sideEffects=None,admissionReviewVersions=v1;v1beta1
 
 // Default implements webhook.Defaulter so a webhook will be registered for the type.
 func (r *AzureManagedMachinePool) Default(client client.Client) {
-	azuremanagedmachinepoollog.Info("default", "name", r.Name)
-
 	if r.Labels == nil {
 		r.Labels = make(map[string]string)
 	}
@@ -54,8 +48,18 @@ func (r *AzureManagedMachinePool) Default(client client.Client) {
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type.
 func (r *AzureManagedMachinePool) ValidateCreate(client client.Client) error {
-	azuremanagedmachinepoollog.Info("validate create", "name", r.Name)
-	return nil
+	validators := []func() error{
+		r.validateMaxPods,
+	}
+
+	var errs []error
+	for _, validator := range validators {
+		if err := validator(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	return kerrors.NewAggregate(errs)
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type.
@@ -90,6 +94,14 @@ func (r *AzureManagedMachinePool) ValidateUpdate(oldRaw runtime.Object, client c
 		}
 	}
 
+	if !ensureStringSlicesAreEqual(r.Spec.AvailabilityZones, old.Spec.AvailabilityZones) {
+		allErrs = append(allErrs,
+			field.Invalid(
+				field.NewPath("Spec", "AvailabilityZones"),
+				r.Spec.AvailabilityZones,
+				"field is immutable"))
+	}
+
 	if r.Spec.Mode != string(NodePoolModeSystem) && old.Spec.Mode == string(NodePoolModeSystem) {
 		// validate for last system node pool
 		if err := r.validateLastSystemNodePool(client); err != nil {
@@ -97,6 +109,44 @@ func (r *AzureManagedMachinePool) ValidateUpdate(oldRaw runtime.Object, client c
 				field.NewPath("Spec", "Mode"),
 				r.Spec.Mode,
 				"Last system node pool cannot be mutated to user node pool"))
+		}
+	}
+
+	if old.Spec.MaxPods != nil {
+		// Prevent MaxPods modification if it was already set to some value
+		if r.Spec.MaxPods == nil {
+			// unsetting the field is not allowed
+			allErrs = append(allErrs,
+				field.Invalid(
+					field.NewPath("Spec", "MaxPods"),
+					r.Spec.MaxPods,
+					"field is immutable, unsetting is not allowed"))
+		} else if *r.Spec.MaxPods != *old.Spec.MaxPods {
+			// changing the field is not allowed
+			allErrs = append(allErrs,
+				field.Invalid(
+					field.NewPath("Spec", "MaxPods"),
+					*r.Spec.MaxPods,
+					"field is immutable"))
+		}
+	}
+
+	if old.Spec.OsDiskType != nil {
+		// Prevent OSDiskType modification if it was already set to some value
+		if r.Spec.OsDiskType == nil || to.String(r.Spec.OsDiskType) == "" {
+			// unsetting the field is not allowed
+			allErrs = append(allErrs,
+				field.Invalid(
+					field.NewPath("Spec", "OsDiskType"),
+					r.Spec.OsDiskType,
+					"field is immutable, unsetting is not allowed"))
+		} else if *r.Spec.OsDiskType != *old.Spec.OsDiskType {
+			// changing the field is not allowed
+			allErrs = append(allErrs,
+				field.Invalid(
+					field.NewPath("Spec", "OsDiskType"),
+					r.Spec.OsDiskType,
+					"field is immutable"))
 		}
 	}
 
@@ -109,8 +159,6 @@ func (r *AzureManagedMachinePool) ValidateUpdate(oldRaw runtime.Object, client c
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type.
 func (r *AzureManagedMachinePool) ValidateDelete(client client.Client) error {
-	azuremanagedmachinepoollog.Info("validate delete", "name", r.Name)
-
 	if r.Spec.Mode != string(NodePoolModeSystem) {
 		return nil
 	}
@@ -161,4 +209,35 @@ func (r *AzureManagedMachinePool) validateLastSystemNodePool(cli client.Client) 
 		return errors.New("AKS Cluster must have at least one system pool")
 	}
 	return nil
+}
+
+func (r *AzureManagedMachinePool) validateMaxPods() error {
+	if r.Spec.MaxPods != nil {
+		if to.Int32(r.Spec.MaxPods) < 10 || to.Int32(r.Spec.MaxPods) > 250 {
+			return field.Invalid(
+				field.NewPath("Spec", "MaxPods"),
+				r.Spec.MaxPods,
+				"MaxPods must be between 10 and 250")
+		}
+	}
+
+	return nil
+}
+
+func ensureStringSlicesAreEqual(a []string, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	m := map[string]bool{}
+	for _, v := range a {
+		m[v] = true
+	}
+
+	for _, v := range b {
+		if _, ok := m[v]; !ok {
+			return false
+		}
+	}
+	return true
 }

@@ -1,10 +1,9 @@
-
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.7.0
+    controller-gen.kubebuilder.io/version: v0.8.0
   creationTimestamp: null
   name: azureclusters.infrastructure.cluster.x-k8s.io
 spec:
@@ -1346,7 +1345,7 @@ spec:
                             description: NatGateway associated with this subnet.
                             properties:
                               id:
-                                description: ID is the Azure resource ID of the nat
+                                description: ID is the Azure resource ID of the NAT
                                   gateway. READ-ONLY
                                 type: string
                               ip:
@@ -1575,7 +1574,9 @@ spec:
                 type: object
               controlPlaneEndpoint:
                 description: ControlPlaneEndpoint represents the endpoint used to
-                  communicate with the control plane.
+                  communicate with the control plane. It is not recommended to set
+                  this when creating an AzureCluster as CAPZ will set this for you.
+                  However, if it is set, CAPZ will not change it.
                 properties:
                   host:
                     description: The hostname on which the API server is serving.
@@ -1816,7 +1817,7 @@ spec:
                           description: NatGateway associated with this subnet.
                           properties:
                             id:
-                              description: ID is the Azure resource ID of the nat
+                              description: ID is the Azure resource ID of the NAT
                                 gateway. READ-ONLY
                               type: string
                             ip:

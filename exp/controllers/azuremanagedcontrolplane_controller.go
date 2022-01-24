@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -39,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
+	"sigs.k8s.io/cluster-api-provider-azure/azure"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/scope"
 	infracontroller "sigs.k8s.io/cluster-api-provider-azure/controllers"
 	infrav1exp "sigs.k8s.io/cluster-api-provider-azure/exp/api/v1beta1"
@@ -50,7 +50,6 @@ import (
 // AzureManagedControlPlaneReconciler reconciles an AzureManagedControlPlane object.
 type AzureManagedControlPlaneReconciler struct {
 	client.Client
-	Log              logr.Logger
 	Recorder         record.EventRecorder
 	ReconcileTimeout time.Duration
 	WatchFilterValue string
@@ -58,10 +57,12 @@ type AzureManagedControlPlaneReconciler struct {
 
 // SetupWithManager initializes this controller with a manager.
 func (amcpr *AzureManagedControlPlaneReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, options infracontroller.Options) error {
-	ctx, _, done := tele.StartSpanWithLogger(ctx, "controllers.AzureManagedControlPlaneReconciler.SetupWithManager")
+	ctx, log, done := tele.StartSpanWithLogger(ctx,
+		"controllers.AzureManagedControlPlaneReconciler.SetupWithManager",
+		tele.KVP("controller", "AzureManagedControlPlane"),
+	)
 	defer done()
 
-	log := amcpr.Log.WithValues("controller", "AzureManagedControlPlane")
 	var r reconcile.Reconciler = amcpr
 	if options.Cache != nil {
 		r = coalescing.NewReconciler(amcpr, options.Cache, log)
@@ -80,7 +81,7 @@ func (amcpr *AzureManagedControlPlaneReconciler) SetupWithManager(ctx context.Co
 	c, err := ctrl.NewControllerManagedBy(mgr).
 		WithOptions(options.Options).
 		For(azManagedControlPlane).
-		WithEventFilter(predicates.ResourceNotPausedAndHasFilterLabel(ctrl.LoggerFrom(ctx), amcpr.WatchFilterValue)).
+		WithEventFilter(predicates.ResourceNotPausedAndHasFilterLabel(log, amcpr.WatchFilterValue)).
 		// watch AzureManagedCluster resources
 		Watches(
 			&source.Kind{Type: &infrav1exp.AzureManagedCluster{}},
@@ -101,7 +102,7 @@ func (amcpr *AzureManagedControlPlaneReconciler) SetupWithManager(ctx context.Co
 		&source.Kind{Type: &clusterv1.Cluster{}},
 		handler.EnqueueRequestsFromMapFunc(util.ClusterToInfrastructureMapFunc(infrav1exp.GroupVersion.WithKind("AzureManagedControlPlane"))),
 		predicates.ClusterUnpausedAndInfrastructureReady(log),
-		predicates.ResourceNotPausedAndHasFilterLabel(ctrl.LoggerFrom(ctx), amcpr.WatchFilterValue),
+		predicates.ResourceNotPausedAndHasFilterLabel(log, amcpr.WatchFilterValue),
 	); err != nil {
 		return errors.Wrap(err, "failed adding a watch for ready clusters")
 	}
@@ -124,8 +125,6 @@ func (amcpr *AzureManagedControlPlaneReconciler) Reconcile(ctx context.Context, 
 		tele.KVP("kind", "AzureManagedControlPlane"),
 	)
 	defer done()
-
-	log = log.WithValues("namespace", req.Namespace, "azureManagedControlPlane", req.Name)
 
 	// Fetch the AzureManagedControlPlane instance
 	azureControlPlane := &infrav1exp.AzureManagedControlPlane{}
@@ -175,7 +174,6 @@ func (amcpr *AzureManagedControlPlaneReconciler) Reconcile(ctx context.Context, 
 	// Create the scope.
 	mcpScope, err := scope.NewManagedControlPlaneScope(ctx, scope.ManagedControlPlaneScopeParams{
 		Client:       amcpr.Client,
-		Logger:       log,
 		Cluster:      cluster,
 		ControlPlane: azureControlPlane,
 		PatchTarget:  azureControlPlane,
@@ -200,34 +198,52 @@ func (amcpr *AzureManagedControlPlaneReconciler) Reconcile(ctx context.Context, 
 }
 
 func (amcpr *AzureManagedControlPlaneReconciler) reconcileNormal(ctx context.Context, scope *scope.ManagedControlPlaneScope) (reconcile.Result, error) {
-	ctx, _, done := tele.StartSpanWithLogger(ctx, "controllers.AzureManagedControlPlaneReconciler.reconcileNormal")
+	ctx, log, done := tele.StartSpanWithLogger(ctx, "controllers.AzureManagedControlPlaneReconciler.reconcileNormal")
 	defer done()
 
-	scope.Logger.Info("Reconciling AzureManagedControlPlane")
+	log.Info("Reconciling AzureManagedControlPlane")
 
 	// If the AzureManagedControlPlane doesn't have our finalizer, add it.
 	controllerutil.AddFinalizer(scope.ControlPlane, infrav1.ClusterFinalizer)
 	// Register the finalizer immediately to avoid orphaning Azure resources on delete
 	if err := scope.PatchObject(ctx); err != nil {
+		amcpr.Recorder.Eventf(scope.ControlPlane, corev1.EventTypeWarning, "AzureManagedControlPlane unavailable", "failed to patch resource: %s", err)
 		return reconcile.Result{}, err
 	}
 
 	if err := newAzureManagedControlPlaneReconciler(scope).Reconcile(ctx); err != nil {
+		// Handle transient and terminal errors
+		log := log.WithValues("name", scope.ControlPlane.Name, "namespace", scope.ControlPlane.Namespace)
+		var reconcileError azure.ReconcileError
+		if errors.As(err, &reconcileError) {
+			if reconcileError.IsTerminal() {
+				log.Error(err, "failed to reconcile AzureManagedControlPlane")
+				return reconcile.Result{}, nil
+			}
+
+			if reconcileError.IsTransient() {
+				log.V(4).Info("requeuing due to transient transient failure", "error", err)
+				return reconcile.Result{RequeueAfter: reconcileError.RequeueAfter()}, nil
+			}
+
+			return reconcile.Result{}, errors.Wrap(err, "failed to reconcile AzureManagedControlPlane")
+		}
+
 		return reconcile.Result{}, errors.Wrapf(err, "error creating AzureManagedControlPlane %s/%s", scope.ControlPlane.Namespace, scope.ControlPlane.Name)
 	}
 
 	// No errors, so mark us ready so the Cluster API Cluster Controller can pull it
 	scope.ControlPlane.Status.Ready = true
 	scope.ControlPlane.Status.Initialized = true
-
+	amcpr.Recorder.Event(scope.ControlPlane, corev1.EventTypeNormal, "AzureManagedControlPlane available", "successfully reconciled")
 	return reconcile.Result{}, nil
 }
 
 func (amcpr *AzureManagedControlPlaneReconciler) reconcileDelete(ctx context.Context, scope *scope.ManagedControlPlaneScope) (reconcile.Result, error) {
-	ctx, _, done := tele.StartSpanWithLogger(ctx, "controllers.AzureManagedControlPlaneReconciler.reconcileDelete")
+	ctx, log, done := tele.StartSpanWithLogger(ctx, "controllers.AzureManagedControlPlaneReconciler.reconcileDelete")
 	defer done()
 
-	scope.Logger.Info("Reconciling AzureManagedControlPlane delete")
+	log.Info("Reconciling AzureManagedControlPlane delete")
 
 	if err := newAzureManagedControlPlaneReconciler(scope).Delete(ctx); err != nil {
 		return reconcile.Result{}, errors.Wrapf(err, "error deleting AzureManagedControlPlane %s/%s", scope.ControlPlane.Namespace, scope.ControlPlane.Name)

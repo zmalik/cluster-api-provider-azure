@@ -22,79 +22,75 @@ import (
 	"testing"
 
 	"github.com/Azure/go-autorest/autorest"
-	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/gomega"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/klog/v2/klogr"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
-	"sigs.k8s.io/cluster-api-provider-azure/azure/scope"
+	"sigs.k8s.io/cluster-api-provider-azure/azure/services/async/mock_async"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/services/disks/mock_disks"
 	gomockinternal "sigs.k8s.io/cluster-api-provider-azure/internal/test/matchers/gomock"
+)
+
+var (
+	diskSpec1 = DiskSpec{
+		Name:          "my-disk-1",
+		ResourceGroup: "my-group",
+	}
+
+	diskSpec2 = DiskSpec{
+		Name:          "my-disk-2",
+		ResourceGroup: "my-group",
+	}
+
+	fakeDiskSpecs = []azure.ResourceSpecGetter{
+		&diskSpec1,
+		&diskSpec2,
+	}
+
+	internalError = autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 500}, "Internal Server Error")
 )
 
 func TestDeleteDisk(t *testing.T) {
 	testcases := []struct {
 		name          string
 		expectedError string
-		expect        func(s *mock_disks.MockDiskScopeMockRecorder, m *mock_disks.MockclientMockRecorder)
+		expect        func(s *mock_disks.MockDiskScopeMockRecorder, r *mock_async.MockReconcilerMockRecorder)
 	}{
 		{
 			name:          "delete the disk",
 			expectedError: "",
-			expect: func(s *mock_disks.MockDiskScopeMockRecorder, m *mock_disks.MockclientMockRecorder) {
-				s.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
-				s.DiskSpecs().Return([]azure.DiskSpec{
-					{
-						Name: "my-disk-1",
-					},
-					{
-						Name: "honk-disk",
-					},
-				})
-				s.ResourceGroup().AnyTimes().Return("my-rg")
-				m.Delete(gomockinternal.AContext(), "my-rg", "my-disk-1")
-				m.Delete(gomockinternal.AContext(), "my-rg", "honk-disk")
+			expect: func(s *mock_disks.MockDiskScopeMockRecorder, r *mock_async.MockReconcilerMockRecorder) {
+				s.DiskSpecs().Return(fakeDiskSpecs)
+				gomock.InOrder(
+					r.DeleteResource(gomockinternal.AContext(), &diskSpec1, serviceName).Return(nil),
+					r.DeleteResource(gomockinternal.AContext(), &diskSpec2, serviceName).Return(nil),
+					s.UpdateDeleteStatus(infrav1.DisksReadyCondition, serviceName, nil),
+				)
 			},
 		},
 		{
 			name:          "disk already deleted",
 			expectedError: "",
-			expect: func(s *mock_disks.MockDiskScopeMockRecorder, m *mock_disks.MockclientMockRecorder) {
-				s.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
-				s.DiskSpecs().Return([]azure.DiskSpec{
-					{
-						Name: "my-disk-1",
-					},
-					{
-						Name: "my-disk-2",
-					},
-				})
-				s.ResourceGroup().AnyTimes().Return("my-rg")
-				m.Delete(gomockinternal.AContext(), "my-rg", "my-disk-1").Return(autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 404}, "Not Found"))
-				m.Delete(gomockinternal.AContext(), "my-rg", "my-disk-2").Return(autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 404}, "Not Found"))
+			expect: func(s *mock_disks.MockDiskScopeMockRecorder, r *mock_async.MockReconcilerMockRecorder) {
+				s.DiskSpecs().Return(fakeDiskSpecs)
+				gomock.InOrder(
+					r.DeleteResource(gomockinternal.AContext(), &diskSpec1, serviceName).Return(nil),
+					r.DeleteResource(gomockinternal.AContext(), &diskSpec2, serviceName).Return(nil),
+					s.UpdateDeleteStatus(infrav1.DisksReadyCondition, serviceName, nil),
+				)
 			},
 		},
 		{
 			name:          "error while trying to delete the disk",
-			expectedError: "failed to delete disk my-disk-1 in resource group my-rg: #: Internal Server Error: StatusCode=500",
-			expect: func(s *mock_disks.MockDiskScopeMockRecorder, m *mock_disks.MockclientMockRecorder) {
-				s.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
-				s.DiskSpecs().Return([]azure.DiskSpec{
-					{
-						Name: "my-disk-1",
-					},
-					{
-						Name: "my-disk-2",
-					},
-				})
-				s.ResourceGroup().AnyTimes().Return("my-rg")
-				m.Delete(gomockinternal.AContext(), "my-rg", "my-disk-1").Return(autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 500}, "Internal Server Error"))
+			expectedError: "#: Internal Server Error: StatusCode=500",
+			expect: func(s *mock_disks.MockDiskScopeMockRecorder, r *mock_async.MockReconcilerMockRecorder) {
+				s.DiskSpecs().Return(fakeDiskSpecs)
+				gomock.InOrder(
+					r.DeleteResource(gomockinternal.AContext(), &diskSpec1, serviceName).Return(internalError),
+					r.DeleteResource(gomockinternal.AContext(), &diskSpec2, serviceName).Return(nil),
+					s.UpdateDeleteStatus(infrav1.DisksReadyCondition, serviceName, internalError),
+				)
 			},
 		},
 	}
@@ -108,13 +104,13 @@ func TestDeleteDisk(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			defer mockCtrl.Finish()
 			scopeMock := mock_disks.NewMockDiskScope(mockCtrl)
-			clientMock := mock_disks.NewMockclient(mockCtrl)
+			asyncMock := mock_async.NewMockReconciler(mockCtrl)
 
-			tc.expect(scopeMock.EXPECT(), clientMock.EXPECT())
+			tc.expect(scopeMock.EXPECT(), asyncMock.EXPECT())
 
 			s := &Service{
-				Scope:  scopeMock,
-				client: clientMock,
+				Scope:      scopeMock,
+				Reconciler: asyncMock,
 			}
 
 			err := s.Delete(context.TODO())
@@ -124,120 +120,6 @@ func TestDeleteDisk(t *testing.T) {
 			} else {
 				g.Expect(err).NotTo(HaveOccurred())
 			}
-		})
-	}
-}
-
-func TestDiskSpecs(t *testing.T) {
-	testcases := []struct {
-		name                   string
-		azureMachineModifyFunc func(*infrav1.AzureMachine)
-		expectedDisks          []azure.DiskSpec
-	}{
-		{
-			name:                   "only os disk",
-			azureMachineModifyFunc: func(m *infrav1.AzureMachine) {},
-			expectedDisks: []azure.DiskSpec{
-				{
-					Name: "my-azure-machine_OSDisk",
-				},
-			},
-		}, {
-			name: "os and data disks",
-			azureMachineModifyFunc: func(m *infrav1.AzureMachine) {
-				m.Spec.DataDisks = []infrav1.DataDisk{{
-					NameSuffix: "etcddisk",
-				}}
-			},
-			expectedDisks: []azure.DiskSpec{
-				{
-					Name: "my-azure-machine_OSDisk",
-				},
-				{
-					Name: "my-azure-machine_etcddisk",
-				},
-			},
-		}, {
-			name: "os and multiple data disks",
-			azureMachineModifyFunc: func(m *infrav1.AzureMachine) {
-				m.Spec.DataDisks = []infrav1.DataDisk{
-					{
-						NameSuffix: "etcddisk",
-					},
-					{
-						NameSuffix: "otherdisk",
-					}}
-			},
-			expectedDisks: []azure.DiskSpec{
-				{
-					Name: "my-azure-machine_OSDisk",
-				},
-				{
-					Name: "my-azure-machine_etcddisk",
-				},
-				{
-					Name: "my-azure-machine_otherdisk",
-				},
-			},
-		}}
-	for _, tc := range testcases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			g := NewWithT(t)
-			scheme := runtime.NewScheme()
-			g.Expect(infrav1.AddToScheme(scheme)).ToNot(HaveOccurred())
-			g.Expect(clusterv1.AddToScheme(scheme)).ToNot(HaveOccurred())
-
-			t.Parallel()
-			cluster := &clusterv1.Cluster{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "my-cluster",
-				},
-			}
-			azureCluster := &infrav1.AzureCluster{
-				Spec: infrav1.AzureClusterSpec{
-					SubscriptionID: "1234",
-				},
-			}
-			machine := &clusterv1.Machine{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "my-machine",
-				},
-			}
-
-			azureMachine := &infrav1.AzureMachine{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "my-azure-machine",
-				},
-				Spec: infrav1.AzureMachineSpec{
-					OSDisk: infrav1.OSDisk{
-						DiskSizeGB: to.Int32Ptr(30),
-						OSType:     "Linux",
-					},
-				},
-			}
-			tc.azureMachineModifyFunc(azureMachine)
-
-			client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cluster, machine, azureCluster, azureMachine).Build()
-			clusterScope, err := scope.NewClusterScope(context.Background(), scope.ClusterScopeParams{
-				AzureClients: scope.AzureClients{
-					Authorizer: autorest.NullAuthorizer{},
-				},
-				Client:       client,
-				Cluster:      cluster,
-				AzureCluster: azureCluster,
-			})
-			g.Expect(err).NotTo(HaveOccurred())
-			machineScope, err := scope.NewMachineScope(scope.MachineScopeParams{
-				Client:       client,
-				ClusterScope: clusterScope,
-				Machine:      machine,
-				AzureMachine: azureMachine,
-			})
-			g.Expect(err).NotTo(HaveOccurred())
-
-			output := machineScope.DiskSpecs()
-			g.Expect(output).To(Equal(tc.expectedDisks))
 		})
 	}
 }

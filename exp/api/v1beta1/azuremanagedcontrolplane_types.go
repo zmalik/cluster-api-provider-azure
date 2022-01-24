@@ -122,11 +122,21 @@ type AADProfile struct {
 	AdminGroupObjectIDs []string `json:"adminGroupObjectIDs"`
 }
 
+// AzureManagedControlPlaneSkuTier - Tier of a managed cluster SKU.
+// +kubebuilder:validation:Enum=Free;Paid
+type AzureManagedControlPlaneSkuTier string
+
+const (
+	// FreeManagedControlPlaneTier is the free tier of AKS without corresponding SLAs.
+	FreeManagedControlPlaneTier AzureManagedControlPlaneSkuTier = "Free"
+	// PaidManagedControlPlaneTier is the paid tier of AKS with corresponding SLAs.
+	PaidManagedControlPlaneTier AzureManagedControlPlaneSkuTier = "Paid"
+)
+
 // SKU - AKS SKU.
 type SKU struct {
 	// Tier - Tier of a managed cluster SKU.
-	// +kubebuilder:validation:Enum=Free;Paid
-	Tier string `json:"tier"`
+	Tier AzureManagedControlPlaneSkuTier `json:"tier"`
 }
 
 // LoadBalancerProfile - Profile of the cluster load balancer.
@@ -194,11 +204,15 @@ type AzureManagedControlPlaneStatus struct {
 	// +optional
 	Ready bool `json:"ready,omitempty"`
 
-	// Initialized is true when the the control plane is available for initial contact.
+	// Initialized is true when the control plane is available for initial contact.
 	// This may occur before the control plane is fully ready.
 	// In the AzureManagedControlPlane implementation, these are identical.
 	// +optional
 	Initialized bool `json:"initialized,omitempty"`
+
+	// Conditions defines current service state of the AzureManagedControlPlane.
+	// +optional
+	Conditions clusterv1.Conditions `json:"conditions,omitempty"`
 
 	// LongRunningOperationStates saves the states for Azure long-running operations so they can be continued on the
 	// next reconciliation loop.
@@ -227,6 +241,16 @@ type AzureManagedControlPlaneList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []AzureManagedControlPlane `json:"items"`
+}
+
+// GetConditions returns the list of conditions for an AzureManagedControlPlane API object.
+func (m *AzureManagedControlPlane) GetConditions() clusterv1.Conditions {
+	return m.Status.Conditions
+}
+
+// SetConditions will set the given conditions on an AzureManagedControlPlane object.
+func (m *AzureManagedControlPlane) SetConditions(conditions clusterv1.Conditions) {
+	m.Status.Conditions = conditions
 }
 
 // GetFutures returns the list of long running operation states for an AzureManagedControlPlane API object.

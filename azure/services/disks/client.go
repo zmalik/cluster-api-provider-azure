@@ -21,48 +21,72 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2021-04-01/compute"
 	"github.com/Azure/go-autorest/autorest"
+	azureautorest "github.com/Azure/go-autorest/autorest/azure"
+	"github.com/pkg/errors"
+
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
+	"sigs.k8s.io/cluster-api-provider-azure/util/reconciler"
 	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
 )
 
-// Client wraps go-sdk.
-type client interface {
-	Delete(context.Context, string, string) error
-}
-
-// AzureClient contains the Azure go-sdk Client.
+// azureClient contains the Azure go-sdk Client.
 type azureClient struct {
 	disks compute.DisksClient
 }
 
-var _ client = (*azureClient)(nil)
-
-// newClient creates a new VM client from subscription ID.
+// newClient creates a new disk Client from subscription ID.
 func newClient(auth azure.Authorizer) *azureClient {
-	c := newDisksClient(auth.SubscriptionID(), auth.BaseURI(), auth.Authorizer())
+	c := NewDisksClient(auth.SubscriptionID(), auth.BaseURI(), auth.Authorizer())
 	return &azureClient{c}
 }
 
-// newDisksClient creates a new disks client from subscription ID.
-func newDisksClient(subscriptionID string, baseURI string, authorizer autorest.Authorizer) compute.DisksClient {
+// NewDisksClient creates a new disks Client from subscription ID.
+func NewDisksClient(subscriptionID string, baseURI string, authorizer autorest.Authorizer) compute.DisksClient {
 	disksClient := compute.NewDisksClientWithBaseURI(baseURI, subscriptionID)
 	azure.SetAutoRestClientDefaults(&disksClient.Client, authorizer)
 	return disksClient
 }
 
-// Delete removes the disk client.
-func (ac *azureClient) Delete(ctx context.Context, resourceGroupName, name string) error {
-	ctx, _, done := tele.StartSpanWithLogger(ctx, "disks.AzureClient.Delete")
+// DeleteAsync deletes a route table asynchronously. DeleteAsync sends a DELETE
+// request to Azure and if accepted without error, the func will return a Future which can be used to track the ongoing
+// progress of the operation.
+func (ac *azureClient) DeleteAsync(ctx context.Context, spec azure.ResourceSpecGetter) (future azureautorest.FutureAPI, err error) {
+	ctx, _, done := tele.StartSpanWithLogger(ctx, "disks.azureClient.DeleteAsync")
 	defer done()
 
-	future, err := ac.disks.Delete(ctx, resourceGroupName, name)
+	deleteFuture, err := ac.disks.Delete(ctx, spec.ResourceGroupName(), spec.ResourceName())
 	if err != nil {
-		return err
+		return nil, err
 	}
-	err = future.WaitForCompletionRef(ctx, ac.disks.Client)
+
+	ctx, cancel := context.WithTimeout(ctx, reconciler.DefaultAzureCallTimeout)
+	defer cancel()
+
+	err = deleteFuture.WaitForCompletionRef(ctx, ac.disks.Client)
 	if err != nil {
-		return err
+		// if an error occurs, return the future.
+		// this means the long-running operation didn't finish in the specified timeout.
+		return &deleteFuture, err
 	}
-	_, err = future.Result(ac.disks)
-	return err
+	_, err = deleteFuture.Result(ac.disks)
+	// if the operation completed, return a nil future.
+	return nil, err
+}
+
+// Result fetches the result of a long-running operation future.
+func (ac *azureClient) Result(ctx context.Context, future azureautorest.FutureAPI, futureType string) (result interface{}, err error) {
+	return nil, nil
+}
+
+// IsDone returns true if the long-running operation has completed.
+func (ac *azureClient) IsDone(ctx context.Context, future azureautorest.FutureAPI) (isDone bool, err error) {
+	ctx, _, done := tele.StartSpanWithLogger(ctx, "disks.azureClient.IsDone")
+	defer done()
+
+	isDone, err = future.DoneWithContext(ctx, ac.disks)
+	if err != nil {
+		return false, errors.Wrap(err, "failed checking if the operation was complete")
+	}
+
+	return isDone, nil
 }

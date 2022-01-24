@@ -19,9 +19,8 @@ package groups
 import (
 	"context"
 
-	"github.com/go-logr/logr"
+	"github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2019-05-01/resources"
 	"github.com/pkg/errors"
-
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/converters"
@@ -35,12 +34,12 @@ const serviceName = "group"
 // Service provides operations on Azure resources.
 type Service struct {
 	Scope GroupScope
+	async.Reconciler
 	client
 }
 
 // GroupScope defines the scope interface for a group service.
 type GroupScope interface {
-	logr.Logger
 	azure.Authorizer
 	azure.AsyncStatusUpdater
 	GroupSpec() azure.ResourceSpecGetter
@@ -49,9 +48,11 @@ type GroupScope interface {
 
 // New creates a new service.
 func New(scope GroupScope) *Service {
+	client := newClient(scope)
 	return &Service{
-		Scope:  scope,
-		client: newClient(scope),
+		Scope:      scope,
+		client:     client,
+		Reconciler: async.New(scope, client, client),
 	}
 }
 
@@ -65,14 +66,14 @@ func (s *Service) Reconcile(ctx context.Context) error {
 
 	groupSpec := s.Scope.GroupSpec()
 
-	err := async.CreateResource(ctx, s.Scope, s.client, groupSpec, serviceName)
+	_, err := s.CreateResource(ctx, groupSpec, serviceName)
 	s.Scope.UpdatePutStatus(infrav1.ResourceGroupReadyCondition, serviceName, err)
 	return err
 }
 
 // Delete deletes the resource group if it is managed by capz.
 func (s *Service) Delete(ctx context.Context) error {
-	ctx, _, done := tele.StartSpanWithLogger(ctx, "groups.Service.Delete")
+	ctx, log, done := tele.StartSpanWithLogger(ctx, "groups.Service.Delete")
 	defer done()
 
 	ctx, cancel := context.WithTimeout(ctx, reconciler.DefaultAzureServiceReconcileTimeout)
@@ -92,11 +93,11 @@ func (s *Service) Delete(ctx context.Context) error {
 		return errors.Wrap(err, "could not get resource group management state")
 	}
 	if !managed {
-		s.Scope.V(2).Info("Should not delete resource group in unmanaged mode")
+		log.V(2).Info("Should not delete resource group in unmanaged mode")
 		return azure.ErrNotOwned
 	}
 
-	err = async.DeleteResource(ctx, s.Scope, s.client, groupSpec, serviceName)
+	err = s.DeleteResource(ctx, groupSpec, serviceName)
 	s.Scope.UpdateDeleteStatus(infrav1.ResourceGroupReadyCondition, serviceName, err)
 	return err
 }
@@ -108,10 +109,15 @@ func (s *Service) IsGroupManaged(ctx context.Context) (bool, error) {
 	defer done()
 
 	groupSpec := s.Scope.GroupSpec()
-	group, err := s.client.Get(ctx, groupSpec.ResourceName())
+	groupIface, err := s.client.Get(ctx, groupSpec)
 	if err != nil {
 		return false, err
 	}
+	group, ok := groupIface.(resources.Group)
+	if !ok {
+		return false, errors.Errorf("%T is not a resources.Group", groupIface)
+	}
+
 	tags := converters.MapToTags(group.Tags)
 	return tags.HasOwned(s.Scope.ClusterName()), nil
 }

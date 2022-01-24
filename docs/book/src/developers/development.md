@@ -297,7 +297,7 @@ CLUSTER_NAME=<my-capz-cluster-name> ./hack/create-dev-cluster.sh
    2.2. Push to your custom image registry:
 
    ```bash
-   REGISTRY="<container-registry>" MANAGER_IMAGE_TAG="<image-tag>" make docker-push
+   REGISTRY=${REGISTRY} MANAGER_IMAGE_TAG=${MANAGER_IMAGE_TAG:="dev"} make docker-push
    ```
 
    NOTE: `make create-cluster` will fetch the manager image locally and load it onto the kind cluster if it is present.
@@ -325,6 +325,11 @@ export AZURE_CONTROL_PLANE_MACHINE_TYPE="Standard_D2s_v3"
 export AZURE_NODE_MACHINE_TYPE="Standard_D2s_v3"
 export WORKER_MACHINE_COUNT=2
 export KUBERNETES_VERSION="v1.22.1"
+
+# Identity secret.
+export AZURE_CLUSTER_IDENTITY_SECRET_NAME="cluster-identity-secret" 
+export CLUSTER_IDENTITY_NAME="cluster-identity" 
+export AZURE_CLUSTER_IDENTITY_SECRET_NAMESPACE="default"
 
 # Generate SSH key.
 # If you want to provide your own key, skip this step and set AZURE_SSH_PUBLIC_KEY_B64 to your existing file.
@@ -466,13 +471,15 @@ Optional settings are:
 | `WINDOWS`            | `false` | Run conformance against Windows nodes |
 | `CONFORMANCE_NODES`  | `1` |Number of parallel ginkgo nodes to run     |
 
-With the following environment variables defined, you can build a CAPZ cluster from the HEAD of Kubernetes main branch or release branch, and run the Conformance test suite against it.  This is not enabled for Windows currently.
+With the following environment variables defined, you can build a CAPZ cluster from the HEAD of Kubernetes main branch or release branch, and run the Conformance test suite against it.
 
 | Environment Variable | Value  |
 |----------------------|--------|
 | `E2E_ARGS`           | `-kubetest.use-ci-artifacts` |
 | `KUBERNETES_VERSION` | `latest` - extract Kubernetes version from https://dl.k8s.io/ci/latest.txt (main's HEAD)<br>`latest-1.21` - extract Kubernetes version from https://dl.k8s.io/ci/latest-1.21.txt (release branch's HEAD) |
-
+| `WINDOWS_FLAVOR`     | Optional, can be `containerd` or `containerd-2022`, when not specified dockershim is used |
+| `KUBETEST_WINDOWS_CONFIG`     | Optional, can be `upstream-windows-serial-slow.yaml`, when not specified `upstream-windows.yaml` is used |
+| `WINDOWS_CONTAINERD_URL`     | Optional, can be any url to a `tar.gz` file containing binaries for containerd in the same format as upstream package |
 
 With the following environment variables defined, CAPZ runs `./scripts/ci-build-kubernetes.sh` as part of `./scripts/ci-conformance.sh`, which allows developers to build Kubernetes from source and run the Kubernetes Conformance test suite against a CAPZ cluster based on the custom build:
 

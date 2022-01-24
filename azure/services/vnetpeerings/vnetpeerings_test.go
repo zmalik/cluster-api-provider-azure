@@ -22,281 +22,177 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2021-02-01/network"
 	"github.com/Azure/go-autorest/autorest"
-	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/gomega"
-	"k8s.io/klog/v2/klogr"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
+	"sigs.k8s.io/cluster-api-provider-azure/azure/services/async/mock_async"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/services/vnetpeerings/mock_vnetpeerings"
 	gomockinternal "sigs.k8s.io/cluster-api-provider-azure/internal/test/matchers/gomock"
+)
+
+var (
+	fakePeering1To2 = VnetPeeringSpec{
+		PeeringName:         "vnet1-to-vnet2",
+		SourceVnetName:      "vnet1",
+		SourceResourceGroup: "group1",
+		RemoteVnetName:      "vnet2",
+		RemoteResourceGroup: "group2",
+		SubscriptionID:      "sub1",
+	}
+	fakePeering2To1 = VnetPeeringSpec{
+		PeeringName:         "vnet2-to-vnet1",
+		SourceVnetName:      "vnet2",
+		SourceResourceGroup: "group2",
+		RemoteVnetName:      "vnet1",
+		RemoteResourceGroup: "group1",
+		SubscriptionID:      "sub1",
+	}
+	fakePeering1To3 = VnetPeeringSpec{
+		PeeringName:         "vnet1-to-vnet3",
+		SourceVnetName:      "vnet1",
+		SourceResourceGroup: "group1",
+		RemoteVnetName:      "vnet3",
+		RemoteResourceGroup: "group3",
+		SubscriptionID:      "sub1",
+	}
+	fakePeering3To1 = VnetPeeringSpec{
+		PeeringName:         "vnet3-to-vnet1",
+		SourceVnetName:      "vnet3",
+		SourceResourceGroup: "group3",
+		RemoteVnetName:      "vnet1",
+		RemoteResourceGroup: "group1",
+		SubscriptionID:      "sub1",
+	}
+	fakePeeringExtra = VnetPeeringSpec{
+		PeeringName:         "extra-peering",
+		SourceVnetName:      "vnet3",
+		SourceResourceGroup: "group3",
+		RemoteVnetName:      "vnet4",
+		RemoteResourceGroup: "group4",
+		SubscriptionID:      "sub1",
+	}
+	fakePeeringSpecs      = []azure.ResourceSpecGetter{&fakePeering1To2, &fakePeering2To1, &fakePeering1To3, &fakePeering3To1}
+	fakePeeringExtraSpecs = []azure.ResourceSpecGetter{&fakePeering1To2, &fakePeering2To1, &fakePeeringExtra}
+	internalError         = autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 500}, "Internal Server Error")
+	notDoneError          = azure.NewOperationNotDoneError(&infrav1.Future{})
 )
 
 func TestReconcileVnetPeerings(t *testing.T) {
 	testcases := []struct {
 		name          string
 		expectedError string
-		expect        func(s *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, m *mock_vnetpeerings.MockClientMockRecorder)
+		expect        func(s *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, r *mock_async.MockReconcilerMockRecorder)
 	}{
 		{
 			name:          "create one peering",
 			expectedError: "",
-			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, m *mock_vnetpeerings.MockClientMockRecorder) {
-				p.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
-				p.VnetPeeringSpecs().Return([]azure.VnetPeeringSpec{
-					{
-						PeeringName:         "vnet1-to-vnet2",
-						SourceVnetName:      "vnet1",
-						SourceResourceGroup: "group1",
-						RemoteVnetName:      "vnet2",
-						RemoteResourceGroup: "group2",
-					},
-				})
-				p.ClusterName().AnyTimes().Return("fake-cluster")
-				p.SubscriptionID().AnyTimes().Return("123")
-				m.CreateOrUpdate(gomockinternal.AContext(), "group1", "vnet1", "vnet1-to-vnet2", gomockinternal.DiffEq(network.VirtualNetworkPeering{
-					VirtualNetworkPeeringPropertiesFormat: &network.VirtualNetworkPeeringPropertiesFormat{
-						RemoteVirtualNetwork: &network.SubResource{
-							ID: to.StringPtr("/subscriptions/123/resourceGroups/group2/providers/Microsoft.Network/virtualNetworks/vnet2"),
-						},
-					},
-				}))
+			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, r *mock_async.MockReconcilerMockRecorder) {
+				p.VnetPeeringSpecs().Return(fakePeeringSpecs[:1])
+				r.CreateResource(gomockinternal.AContext(), &fakePeering1To2, serviceName).Return(&fakePeering1To2, nil)
+				p.UpdatePutStatus(infrav1.VnetPeeringReadyCondition, serviceName, nil)
 			},
 		},
 		{
 			name:          "create no peerings",
 			expectedError: "",
-			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, m *mock_vnetpeerings.MockClientMockRecorder) {
-				p.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
-				p.VnetPeeringSpecs().Return([]azure.VnetPeeringSpec{})
-				p.ClusterName().AnyTimes().Return("fake-cluster")
-				p.SubscriptionID().AnyTimes().Return("123")
+			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, r *mock_async.MockReconcilerMockRecorder) {
+				p.VnetPeeringSpecs().Return(fakePeeringSpecs[:0])
+				p.UpdatePutStatus(infrav1.VnetPeeringReadyCondition, serviceName, nil)
 			},
 		},
 		{
 			name:          "create even number of peerings",
 			expectedError: "",
-			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, m *mock_vnetpeerings.MockClientMockRecorder) {
-				p.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
-				p.VnetPeeringSpecs().Return([]azure.VnetPeeringSpec{
-					{
-						PeeringName:         "vnet1-to-vnet2",
-						SourceVnetName:      "vnet1",
-						SourceResourceGroup: "group1",
-						RemoteVnetName:      "vnet2",
-						RemoteResourceGroup: "group2",
-					},
-					{
-						PeeringName:         "vnet2-to-vnet1",
-						SourceVnetName:      "vnet2",
-						SourceResourceGroup: "group2",
-						RemoteVnetName:      "vnet1",
-						RemoteResourceGroup: "group1",
-					},
-				})
-				p.ClusterName().AnyTimes().Return("fake-cluster")
-				p.SubscriptionID().AnyTimes().Return("123")
-				m.CreateOrUpdate(gomockinternal.AContext(), "group1", "vnet1", "vnet1-to-vnet2", gomockinternal.DiffEq(network.VirtualNetworkPeering{
-					VirtualNetworkPeeringPropertiesFormat: &network.VirtualNetworkPeeringPropertiesFormat{
-						RemoteVirtualNetwork: &network.SubResource{
-							ID: to.StringPtr("/subscriptions/123/resourceGroups/group2/providers/Microsoft.Network/virtualNetworks/vnet2"),
-						},
-					},
-				}))
-				m.CreateOrUpdate(gomockinternal.AContext(), "group2", "vnet2", "vnet2-to-vnet1", gomockinternal.DiffEq(network.VirtualNetworkPeering{
-					VirtualNetworkPeeringPropertiesFormat: &network.VirtualNetworkPeeringPropertiesFormat{
-						RemoteVirtualNetwork: &network.SubResource{
-							ID: to.StringPtr("/subscriptions/123/resourceGroups/group1/providers/Microsoft.Network/virtualNetworks/vnet1"),
-						},
-					},
-				}))
+			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, r *mock_async.MockReconcilerMockRecorder) {
+				p.VnetPeeringSpecs().Return(fakePeeringSpecs[:2])
+				r.CreateResource(gomockinternal.AContext(), &fakePeering1To2, serviceName).Return(&fakePeering1To2, nil)
+				r.CreateResource(gomockinternal.AContext(), &fakePeering2To1, serviceName).Return(&fakePeering2To1, nil)
+				p.UpdatePutStatus(infrav1.VnetPeeringReadyCondition, serviceName, nil)
 			},
 		},
 		{
 			name:          "create odd number of peerings",
 			expectedError: "",
-			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, m *mock_vnetpeerings.MockClientMockRecorder) {
-				p.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
-				p.VnetPeeringSpecs().Return([]azure.VnetPeeringSpec{
-					{
-						PeeringName:         "vnet1-to-vnet2",
-						SourceVnetName:      "vnet1",
-						SourceResourceGroup: "group1",
-						RemoteVnetName:      "vnet2",
-						RemoteResourceGroup: "group2",
-					},
-					{
-						PeeringName:         "vnet2-to-vnet1",
-						SourceVnetName:      "vnet2",
-						SourceResourceGroup: "group2",
-						RemoteVnetName:      "vnet1",
-						RemoteResourceGroup: "group1",
-					},
-					{
-						PeeringName:         "extra-peering",
-						SourceVnetName:      "vnet3",
-						SourceResourceGroup: "group3",
-						RemoteVnetName:      "vnet4",
-						RemoteResourceGroup: "group4",
-					},
-				})
-				p.Vnet().AnyTimes().Return(&infrav1.VnetSpec{Name: "vnet2"})
-				p.ClusterName().AnyTimes().Return("fake-cluster")
-				p.SubscriptionID().AnyTimes().Return("123")
-				m.CreateOrUpdate(gomockinternal.AContext(), "group1", "vnet1", "vnet1-to-vnet2", gomockinternal.DiffEq(network.VirtualNetworkPeering{
-					VirtualNetworkPeeringPropertiesFormat: &network.VirtualNetworkPeeringPropertiesFormat{
-						RemoteVirtualNetwork: &network.SubResource{
-							ID: to.StringPtr("/subscriptions/123/resourceGroups/group2/providers/Microsoft.Network/virtualNetworks/vnet2"),
-						},
-					},
-				}))
-				m.CreateOrUpdate(gomockinternal.AContext(), "group2", "vnet2", "vnet2-to-vnet1", gomockinternal.DiffEq(network.VirtualNetworkPeering{
-					VirtualNetworkPeeringPropertiesFormat: &network.VirtualNetworkPeeringPropertiesFormat{
-						RemoteVirtualNetwork: &network.SubResource{
-							ID: to.StringPtr("/subscriptions/123/resourceGroups/group1/providers/Microsoft.Network/virtualNetworks/vnet1"),
-						},
-					},
-				}))
-				m.CreateOrUpdate(gomockinternal.AContext(), "group3", "vnet3", "extra-peering", gomockinternal.DiffEq(network.VirtualNetworkPeering{
-					VirtualNetworkPeeringPropertiesFormat: &network.VirtualNetworkPeeringPropertiesFormat{
-						RemoteVirtualNetwork: &network.SubResource{
-							ID: to.StringPtr("/subscriptions/123/resourceGroups/group4/providers/Microsoft.Network/virtualNetworks/vnet4"),
-						},
-					},
-				}))
+			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, r *mock_async.MockReconcilerMockRecorder) {
+				p.VnetPeeringSpecs().Return(fakePeeringExtraSpecs)
+				r.CreateResource(gomockinternal.AContext(), &fakePeering1To2, serviceName).Return(&fakePeering1To2, nil)
+				r.CreateResource(gomockinternal.AContext(), &fakePeering2To1, serviceName).Return(&fakePeering2To1, nil)
+				r.CreateResource(gomockinternal.AContext(), &fakePeeringExtra, serviceName).Return(&fakePeeringExtra, nil)
+				p.UpdatePutStatus(infrav1.VnetPeeringReadyCondition, serviceName, nil)
 			},
 		},
 		{
 			name:          "create multiple peerings on one vnet",
 			expectedError: "",
-			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, m *mock_vnetpeerings.MockClientMockRecorder) {
-				p.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
-				p.VnetPeeringSpecs().Return([]azure.VnetPeeringSpec{
-					{
-						PeeringName:         "vnet1-to-vnet2",
-						SourceVnetName:      "vnet1",
-						SourceResourceGroup: "group1",
-						RemoteVnetName:      "vnet2",
-						RemoteResourceGroup: "group2",
-					},
-					{
-						PeeringName:         "vnet2-to-vnet1",
-						SourceVnetName:      "vnet2",
-						SourceResourceGroup: "group2",
-						RemoteVnetName:      "vnet1",
-						RemoteResourceGroup: "group1",
-					},
-					{
-						PeeringName:         "vnet1-to-vnet3",
-						SourceVnetName:      "vnet1",
-						SourceResourceGroup: "group1",
-						RemoteVnetName:      "vnet3",
-						RemoteResourceGroup: "group3",
-					},
-					{
-						PeeringName:         "vnet3-to-vnet1",
-						SourceVnetName:      "vnet3",
-						SourceResourceGroup: "group3",
-						RemoteVnetName:      "vnet1",
-						RemoteResourceGroup: "group1",
-					},
-				})
-				p.ClusterName().AnyTimes().Return("fake-cluster")
-				p.SubscriptionID().AnyTimes().Return("123")
-				m.CreateOrUpdate(gomockinternal.AContext(), "group1", "vnet1", "vnet1-to-vnet2", gomockinternal.DiffEq(network.VirtualNetworkPeering{
-					VirtualNetworkPeeringPropertiesFormat: &network.VirtualNetworkPeeringPropertiesFormat{
-						RemoteVirtualNetwork: &network.SubResource{
-							ID: to.StringPtr("/subscriptions/123/resourceGroups/group2/providers/Microsoft.Network/virtualNetworks/vnet2"),
-						},
-					},
-				}))
-				m.CreateOrUpdate(gomockinternal.AContext(), "group2", "vnet2", "vnet2-to-vnet1", gomockinternal.DiffEq(network.VirtualNetworkPeering{
-					VirtualNetworkPeeringPropertiesFormat: &network.VirtualNetworkPeeringPropertiesFormat{
-						RemoteVirtualNetwork: &network.SubResource{
-							ID: to.StringPtr("/subscriptions/123/resourceGroups/group1/providers/Microsoft.Network/virtualNetworks/vnet1"),
-						},
-					},
-				}))
-				m.CreateOrUpdate(gomockinternal.AContext(), "group1", "vnet1", "vnet1-to-vnet3", gomockinternal.DiffEq(network.VirtualNetworkPeering{
-					VirtualNetworkPeeringPropertiesFormat: &network.VirtualNetworkPeeringPropertiesFormat{
-						RemoteVirtualNetwork: &network.SubResource{
-							ID: to.StringPtr("/subscriptions/123/resourceGroups/group3/providers/Microsoft.Network/virtualNetworks/vnet3"),
-						},
-					},
-				}))
-				m.CreateOrUpdate(gomockinternal.AContext(), "group3", "vnet3", "vnet3-to-vnet1", gomockinternal.DiffEq(network.VirtualNetworkPeering{
-					VirtualNetworkPeeringPropertiesFormat: &network.VirtualNetworkPeeringPropertiesFormat{
-						RemoteVirtualNetwork: &network.SubResource{
-							ID: to.StringPtr("/subscriptions/123/resourceGroups/group1/providers/Microsoft.Network/virtualNetworks/vnet1"),
-						},
-					},
-				}))
+			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, r *mock_async.MockReconcilerMockRecorder) {
+				p.VnetPeeringSpecs().Return(fakePeeringSpecs)
+				r.CreateResource(gomockinternal.AContext(), &fakePeering1To2, serviceName).Return(&fakePeering1To2, nil)
+				r.CreateResource(gomockinternal.AContext(), &fakePeering2To1, serviceName).Return(&fakePeering2To1, nil)
+				r.CreateResource(gomockinternal.AContext(), &fakePeering1To3, serviceName).Return(&fakePeering1To3, nil)
+				r.CreateResource(gomockinternal.AContext(), &fakePeering3To1, serviceName).Return(&fakePeering3To1, nil)
+				p.UpdatePutStatus(infrav1.VnetPeeringReadyCondition, serviceName, nil)
 			},
 		},
 		{
-			name:          "error in creating peering where loop terminates prematurely",
-			expectedError: "failed to create peering vnet1-to-vnet3 in resource group group1: #: Internal Server Error: StatusCode=500",
-			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, m *mock_vnetpeerings.MockClientMockRecorder) {
-				p.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
-				p.VnetPeeringSpecs().Return([]azure.VnetPeeringSpec{
-					{
-						PeeringName:         "vnet1-to-vnet2",
-						SourceVnetName:      "vnet1",
-						SourceResourceGroup: "group1",
-						RemoteVnetName:      "vnet2",
-						RemoteResourceGroup: "group2",
-					},
-					{
-						PeeringName:         "vnet2-to-vnet1",
-						SourceVnetName:      "vnet2",
-						SourceResourceGroup: "group2",
-						RemoteVnetName:      "vnet1",
-						RemoteResourceGroup: "group1",
-					},
-					{
-						PeeringName:         "vnet1-to-vnet3",
-						SourceVnetName:      "vnet1",
-						SourceResourceGroup: "group1",
-						RemoteVnetName:      "vnet3",
-						RemoteResourceGroup: "group3",
-					},
-					{
-						PeeringName:         "vnet3-to-vnet1",
-						SourceVnetName:      "vnet3",
-						SourceResourceGroup: "group3",
-						RemoteVnetName:      "vnet1",
-						RemoteResourceGroup: "group1",
-					},
-				})
-				p.Vnet().AnyTimes().Return(&infrav1.VnetSpec{
-					Name:          "vnet1",
-					ResourceGroup: "group1",
-				})
-				p.ClusterName().AnyTimes().Return("fake-cluster")
-				p.SubscriptionID().AnyTimes().Return("123")
-				m.CreateOrUpdate(gomockinternal.AContext(), "group1", "vnet1", "vnet1-to-vnet2", gomockinternal.DiffEq(network.VirtualNetworkPeering{
-					VirtualNetworkPeeringPropertiesFormat: &network.VirtualNetworkPeeringPropertiesFormat{
-						RemoteVirtualNetwork: &network.SubResource{
-							ID: to.StringPtr("/subscriptions/123/resourceGroups/group2/providers/Microsoft.Network/virtualNetworks/vnet2"),
-						},
-					},
-				}))
-				m.CreateOrUpdate(gomockinternal.AContext(), "group2", "vnet2", "vnet2-to-vnet1", gomockinternal.DiffEq(network.VirtualNetworkPeering{
-					VirtualNetworkPeeringPropertiesFormat: &network.VirtualNetworkPeeringPropertiesFormat{
-						RemoteVirtualNetwork: &network.SubResource{
-							ID: to.StringPtr("/subscriptions/123/resourceGroups/group1/providers/Microsoft.Network/virtualNetworks/vnet1"),
-						},
-					},
-				}))
-				m.CreateOrUpdate(gomockinternal.AContext(), "group1", "vnet1", "vnet1-to-vnet3", gomockinternal.DiffEq(network.VirtualNetworkPeering{
-					VirtualNetworkPeeringPropertiesFormat: &network.VirtualNetworkPeeringPropertiesFormat{
-						RemoteVirtualNetwork: &network.SubResource{
-							ID: to.StringPtr("/subscriptions/123/resourceGroups/group3/providers/Microsoft.Network/virtualNetworks/vnet3"),
-						},
-					},
-				})).Return(autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 500}, "Internal Server Error"))
+			name:          "error in creating peering",
+			expectedError: "#: Internal Server Error: StatusCode=500",
+			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, r *mock_async.MockReconcilerMockRecorder) {
+				p.VnetPeeringSpecs().Return(fakePeeringSpecs)
+				r.CreateResource(gomockinternal.AContext(), &fakePeering1To2, serviceName).Return(&fakePeering1To2, nil)
+				r.CreateResource(gomockinternal.AContext(), &fakePeering2To1, serviceName).Return(&fakePeering2To1, nil)
+				r.CreateResource(gomockinternal.AContext(), &fakePeering1To3, serviceName).Return(nil, internalError)
+				r.CreateResource(gomockinternal.AContext(), &fakePeering3To1, serviceName).Return(&fakePeering3To1, nil)
+				p.UpdatePutStatus(infrav1.VnetPeeringReadyCondition, serviceName, internalError)
+			},
+		},
+		{
+			name:          "error in creating peering",
+			expectedError: "#: Internal Server Error: StatusCode=500",
+			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, r *mock_async.MockReconcilerMockRecorder) {
+				p.VnetPeeringSpecs().Return(fakePeeringSpecs)
+				r.CreateResource(gomockinternal.AContext(), &fakePeering1To2, serviceName).Return(&fakePeering1To2, nil)
+				r.CreateResource(gomockinternal.AContext(), &fakePeering2To1, serviceName).Return(&fakePeering2To1, nil)
+				r.CreateResource(gomockinternal.AContext(), &fakePeering1To3, serviceName).Return(nil, internalError)
+				r.CreateResource(gomockinternal.AContext(), &fakePeering3To1, serviceName).Return(&fakePeering3To1, nil)
+				p.UpdatePutStatus(infrav1.VnetPeeringReadyCondition, serviceName, internalError)
+			},
+		},
+		{
+			name:          "not done error in creating is ignored",
+			expectedError: "#: Internal Server Error: StatusCode=500",
+			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, r *mock_async.MockReconcilerMockRecorder) {
+				p.VnetPeeringSpecs().Return(fakePeeringSpecs)
+				r.CreateResource(gomockinternal.AContext(), &fakePeering1To2, serviceName).Return(&fakePeering1To2, nil)
+				r.CreateResource(gomockinternal.AContext(), &fakePeering2To1, serviceName).Return(nil, internalError)
+				r.CreateResource(gomockinternal.AContext(), &fakePeering1To3, serviceName).Return(nil, notDoneError)
+				r.CreateResource(gomockinternal.AContext(), &fakePeering3To1, serviceName).Return(&fakePeering3To1, nil)
+				p.UpdatePutStatus(infrav1.VnetPeeringReadyCondition, serviceName, internalError)
+			},
+		},
+		{
+			name:          "not done error in creating is overwritten",
+			expectedError: "#: Internal Server Error: StatusCode=500",
+			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, r *mock_async.MockReconcilerMockRecorder) {
+				p.VnetPeeringSpecs().Return(fakePeeringSpecs)
+				r.CreateResource(gomockinternal.AContext(), &fakePeering1To2, serviceName).Return(&fakePeering1To2, nil)
+				r.CreateResource(gomockinternal.AContext(), &fakePeering2To1, serviceName).Return(&fakePeering2To1, nil)
+				r.CreateResource(gomockinternal.AContext(), &fakePeering1To3, serviceName).Return(nil, notDoneError)
+				r.CreateResource(gomockinternal.AContext(), &fakePeering3To1, serviceName).Return(nil, internalError)
+				p.UpdatePutStatus(infrav1.VnetPeeringReadyCondition, serviceName, internalError)
+			},
+		},
+		{
+			name:          "not done error in creating remains",
+			expectedError: "operation type  on Azure resource / is not done",
+			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, r *mock_async.MockReconcilerMockRecorder) {
+				p.VnetPeeringSpecs().Return(fakePeeringSpecs)
+				r.CreateResource(gomockinternal.AContext(), &fakePeering1To2, serviceName).Return(&fakePeering1To2, nil)
+				r.CreateResource(gomockinternal.AContext(), &fakePeering2To1, serviceName).Return(&fakePeering2To1, nil)
+				r.CreateResource(gomockinternal.AContext(), &fakePeering1To3, serviceName).Return(nil, notDoneError)
+				r.CreateResource(gomockinternal.AContext(), &fakePeering3To1, serviceName).Return(&fakePeering3To1, nil)
+				p.UpdatePutStatus(infrav1.VnetPeeringReadyCondition, serviceName, notDoneError)
 			},
 		},
 	}
@@ -310,13 +206,13 @@ func TestReconcileVnetPeerings(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			defer mockCtrl.Finish()
 			scopeMock := mock_vnetpeerings.NewMockVnetPeeringScope(mockCtrl)
-			clientMock := mock_vnetpeerings.NewMockClient(mockCtrl)
+			asyncMock := mock_async.NewMockReconciler(mockCtrl)
 
-			tc.expect(scopeMock.EXPECT(), clientMock.EXPECT())
+			tc.expect(scopeMock.EXPECT(), asyncMock.EXPECT())
 
 			s := &Service{
-				Scope:  scopeMock,
-				Client: clientMock,
+				Scope:      scopeMock,
+				Reconciler: asyncMock,
 			}
 
 			err := s.Reconcile(context.TODO())
@@ -334,187 +230,104 @@ func TestDeleteVnetPeerings(t *testing.T) {
 	testcases := []struct {
 		name          string
 		expectedError string
-		expect        func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, m *mock_vnetpeerings.MockClientMockRecorder)
+		expect        func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, r *mock_async.MockReconcilerMockRecorder)
 	}{
 		{
 			name:          "delete one peering",
 			expectedError: "",
-			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, m *mock_vnetpeerings.MockClientMockRecorder) {
-				p.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
-				p.VnetPeeringSpecs().Return([]azure.VnetPeeringSpec{
-					{
-						PeeringName:         "vnet1-to-vnet2",
-						SourceVnetName:      "vnet1",
-						SourceResourceGroup: "group1",
-						RemoteVnetName:      "vnet2",
-						RemoteResourceGroup: "group2",
-					},
-				})
-				p.ClusterName().AnyTimes().Return("fake-cluster")
-				p.SubscriptionID().AnyTimes().Return("123")
-				m.Delete(gomockinternal.AContext(), "group1", "vnet1", "vnet1-to-vnet2")
+			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, r *mock_async.MockReconcilerMockRecorder) {
+				p.VnetPeeringSpecs().Return(fakePeeringSpecs[:1])
+				r.DeleteResource(gomockinternal.AContext(), &fakePeering1To2, serviceName).Return(nil)
+				p.UpdateDeleteStatus(infrav1.VnetPeeringReadyCondition, serviceName, nil)
 			},
 		},
 		{
 			name:          "delete no peerings",
 			expectedError: "",
-			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, m *mock_vnetpeerings.MockClientMockRecorder) {
-				p.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
-				p.VnetPeeringSpecs().Return([]azure.VnetPeeringSpec{})
-				p.ClusterName().AnyTimes().Return("fake-cluster")
-				p.SubscriptionID().AnyTimes().Return("123")
+			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, r *mock_async.MockReconcilerMockRecorder) {
+				p.VnetPeeringSpecs().Return(fakePeeringSpecs[:0])
+				p.UpdateDeleteStatus(infrav1.VnetPeeringReadyCondition, serviceName, nil)
 			},
 		},
 		{
 			name:          "delete even number of peerings",
 			expectedError: "",
-			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, m *mock_vnetpeerings.MockClientMockRecorder) {
-				p.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
-				p.VnetPeeringSpecs().Return([]azure.VnetPeeringSpec{
-					{
-						PeeringName:         "vnet1-to-vnet2",
-						SourceVnetName:      "vnet1",
-						SourceResourceGroup: "group1",
-						RemoteVnetName:      "vnet2",
-						RemoteResourceGroup: "group2",
-					},
-					{
-						PeeringName:         "vnet2-to-vnet1",
-						SourceVnetName:      "vnet2",
-						SourceResourceGroup: "group2",
-						RemoteVnetName:      "vnet1",
-						RemoteResourceGroup: "group1",
-					},
-				})
-				p.ClusterName().AnyTimes().Return("fake-cluster")
-				p.SubscriptionID().AnyTimes().Return("123")
-				m.Delete(gomockinternal.AContext(), "group1", "vnet1", "vnet1-to-vnet2")
-				m.Delete(gomockinternal.AContext(), "group2", "vnet2", "vnet2-to-vnet1")
+			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, r *mock_async.MockReconcilerMockRecorder) {
+				p.VnetPeeringSpecs().Return(fakePeeringSpecs[:2])
+				r.DeleteResource(gomockinternal.AContext(), &fakePeering1To2, serviceName).Return(nil)
+				r.DeleteResource(gomockinternal.AContext(), &fakePeering2To1, serviceName).Return(nil)
+				p.UpdateDeleteStatus(infrav1.VnetPeeringReadyCondition, serviceName, nil)
 			},
 		},
 		{
 			name:          "delete odd number of peerings",
 			expectedError: "",
-			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, m *mock_vnetpeerings.MockClientMockRecorder) {
-				p.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
-				p.VnetPeeringSpecs().Return([]azure.VnetPeeringSpec{
-					{
-						PeeringName:         "vnet1-to-vnet2",
-						SourceVnetName:      "vnet1",
-						SourceResourceGroup: "group1",
-						RemoteVnetName:      "vnet2",
-						RemoteResourceGroup: "group2",
-					},
-					{
-						PeeringName:         "vnet2-to-vnet1",
-						SourceVnetName:      "vnet2",
-						SourceResourceGroup: "group2",
-						RemoteVnetName:      "vnet1",
-						RemoteResourceGroup: "group1",
-					},
-					{
-						PeeringName:         "extra-peering",
-						SourceVnetName:      "vnet3",
-						SourceResourceGroup: "group3",
-						RemoteVnetName:      "vnet4",
-						RemoteResourceGroup: "group4",
-					},
-				})
-				p.Vnet().AnyTimes().Return(&infrav1.VnetSpec{Name: "vnet2"})
-				p.ClusterName().AnyTimes().Return("fake-cluster")
-				p.SubscriptionID().AnyTimes().Return("123")
-				m.Delete(gomockinternal.AContext(), "group1", "vnet1", "vnet1-to-vnet2")
-				m.Delete(gomockinternal.AContext(), "group2", "vnet2", "vnet2-to-vnet1")
-				m.Delete(gomockinternal.AContext(), "group3", "vnet3", "extra-peering")
+			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, r *mock_async.MockReconcilerMockRecorder) {
+				p.VnetPeeringSpecs().Return(fakePeeringExtraSpecs)
+				r.DeleteResource(gomockinternal.AContext(), &fakePeering1To2, serviceName).Return(nil)
+				r.DeleteResource(gomockinternal.AContext(), &fakePeering2To1, serviceName).Return(nil)
+				r.DeleteResource(gomockinternal.AContext(), &fakePeeringExtra, serviceName).Return(nil)
+				p.UpdateDeleteStatus(infrav1.VnetPeeringReadyCondition, serviceName, nil)
 			},
 		},
 		{
 			name:          "delete multiple peerings on one vnet",
 			expectedError: "",
-			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, m *mock_vnetpeerings.MockClientMockRecorder) {
-				p.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
-				p.VnetPeeringSpecs().Return([]azure.VnetPeeringSpec{
-					{
-						PeeringName:         "vnet1-to-vnet2",
-						SourceVnetName:      "vnet1",
-						SourceResourceGroup: "group1",
-						RemoteVnetName:      "vnet2",
-						RemoteResourceGroup: "group2",
-					},
-					{
-						PeeringName:         "vnet2-to-vnet1",
-						SourceVnetName:      "vnet2",
-						SourceResourceGroup: "group2",
-						RemoteVnetName:      "vnet1",
-						RemoteResourceGroup: "group1",
-					},
-					{
-						PeeringName:         "vnet1-to-vnet3",
-						SourceVnetName:      "vnet1",
-						SourceResourceGroup: "group1",
-						RemoteVnetName:      "vnet3",
-						RemoteResourceGroup: "group3",
-					},
-					{
-						PeeringName:         "vnet3-to-vnet1",
-						SourceVnetName:      "vnet3",
-						SourceResourceGroup: "group3",
-						RemoteVnetName:      "vnet1",
-						RemoteResourceGroup: "group1",
-					},
-				})
-				p.ClusterName().AnyTimes().Return("fake-cluster")
-				p.SubscriptionID().AnyTimes().Return("123")
-				m.Delete(gomockinternal.AContext(), "group1", "vnet1", "vnet1-to-vnet2")
-				m.Delete(gomockinternal.AContext(), "group2", "vnet2", "vnet2-to-vnet1")
-				m.Delete(gomockinternal.AContext(), "group1", "vnet1", "vnet1-to-vnet3")
-				m.Delete(gomockinternal.AContext(), "group3", "vnet3", "vnet3-to-vnet1")
+			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, r *mock_async.MockReconcilerMockRecorder) {
+				p.VnetPeeringSpecs().Return(fakePeeringSpecs)
+				r.DeleteResource(gomockinternal.AContext(), &fakePeering1To2, serviceName).Return(nil)
+				r.DeleteResource(gomockinternal.AContext(), &fakePeering2To1, serviceName).Return(nil)
+				r.DeleteResource(gomockinternal.AContext(), &fakePeering1To3, serviceName).Return(nil)
+				r.DeleteResource(gomockinternal.AContext(), &fakePeering3To1, serviceName).Return(nil)
+				p.UpdateDeleteStatus(infrav1.VnetPeeringReadyCondition, serviceName, nil)
 			},
 		},
 		{
-			name:          "error in deleting peering where loop terminates prematurely",
-			expectedError: "failed to delete peering vnet1-to-vnet3 in vnet vnet1 and resource group group1: #: Internal Server Error: StatusCode=500",
-			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, m *mock_vnetpeerings.MockClientMockRecorder) {
-				p.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
-				p.VnetPeeringSpecs().Return([]azure.VnetPeeringSpec{
-					{
-						PeeringName:         "vnet1-to-vnet2",
-						SourceVnetName:      "vnet1",
-						SourceResourceGroup: "group1",
-						RemoteVnetName:      "vnet2",
-						RemoteResourceGroup: "group2",
-					},
-					{
-						PeeringName:         "vnet2-to-vnet1",
-						SourceVnetName:      "vnet2",
-						SourceResourceGroup: "group2",
-						RemoteVnetName:      "vnet1",
-						RemoteResourceGroup: "group1",
-					},
-					{
-						PeeringName:         "vnet1-to-vnet3",
-						SourceVnetName:      "vnet1",
-						SourceResourceGroup: "group1",
-						RemoteVnetName:      "vnet3",
-						RemoteResourceGroup: "group3",
-					},
-					{
-						PeeringName:         "vnet3-to-vnet1",
-						SourceVnetName:      "vnet3",
-						SourceResourceGroup: "group3",
-						RemoteVnetName:      "vnet1",
-						RemoteResourceGroup: "group1",
-					},
-				})
-				p.Vnet().AnyTimes().Return(&infrav1.VnetSpec{
-					Name:          "vnet1",
-					ResourceGroup: "group1",
-				})
-				p.ClusterName().AnyTimes().Return("fake-cluster")
-				p.SubscriptionID().AnyTimes().Return("123")
-				m.Delete(gomockinternal.AContext(), "group1", "vnet1", "vnet1-to-vnet2")
-				m.Delete(gomockinternal.AContext(), "group2", "vnet2", "vnet2-to-vnet1")
-				m.Delete(gomockinternal.AContext(), "group1", "vnet1", "vnet1-to-vnet3").Return(autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 500}, "Internal Server Error"))
+			name:          "error in deleting peering",
+			expectedError: "#: Internal Server Error: StatusCode=500",
+			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, r *mock_async.MockReconcilerMockRecorder) {
+				p.VnetPeeringSpecs().Return(fakePeeringSpecs)
+				r.DeleteResource(gomockinternal.AContext(), &fakePeering1To2, serviceName).Return(nil)
+				r.DeleteResource(gomockinternal.AContext(), &fakePeering2To1, serviceName).Return(nil)
+				r.DeleteResource(gomockinternal.AContext(), &fakePeering1To3, serviceName).Return(internalError)
+				r.DeleteResource(gomockinternal.AContext(), &fakePeering3To1, serviceName).Return(nil)
+				p.UpdateDeleteStatus(infrav1.VnetPeeringReadyCondition, serviceName, internalError)
+			},
+		},
+		{
+			name:          "not done error in deleting is ignored",
+			expectedError: "#: Internal Server Error: StatusCode=500",
+			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, r *mock_async.MockReconcilerMockRecorder) {
+				p.VnetPeeringSpecs().Return(fakePeeringSpecs)
+				r.DeleteResource(gomockinternal.AContext(), &fakePeering1To2, serviceName).Return(nil)
+				r.DeleteResource(gomockinternal.AContext(), &fakePeering2To1, serviceName).Return(internalError)
+				r.DeleteResource(gomockinternal.AContext(), &fakePeering1To3, serviceName).Return(notDoneError)
+				r.DeleteResource(gomockinternal.AContext(), &fakePeering3To1, serviceName).Return(nil)
+				p.UpdateDeleteStatus(infrav1.VnetPeeringReadyCondition, serviceName, internalError)
+			},
+		},
+		{
+			name:          "not done error in deleting is overwritten",
+			expectedError: "#: Internal Server Error: StatusCode=500",
+			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, r *mock_async.MockReconcilerMockRecorder) {
+				p.VnetPeeringSpecs().Return(fakePeeringSpecs)
+				r.DeleteResource(gomockinternal.AContext(), &fakePeering1To2, serviceName).Return(nil)
+				r.DeleteResource(gomockinternal.AContext(), &fakePeering2To1, serviceName).Return(nil)
+				r.DeleteResource(gomockinternal.AContext(), &fakePeering1To3, serviceName).Return(notDoneError)
+				r.DeleteResource(gomockinternal.AContext(), &fakePeering3To1, serviceName).Return(internalError)
+				p.UpdateDeleteStatus(infrav1.VnetPeeringReadyCondition, serviceName, internalError)
+			},
+		},
+		{
+			name:          "not done error in deleting remains",
+			expectedError: "operation type  on Azure resource / is not done",
+			expect: func(p *mock_vnetpeerings.MockVnetPeeringScopeMockRecorder, r *mock_async.MockReconcilerMockRecorder) {
+				p.VnetPeeringSpecs().Return(fakePeeringSpecs)
+				r.DeleteResource(gomockinternal.AContext(), &fakePeering1To2, serviceName).Return(nil)
+				r.DeleteResource(gomockinternal.AContext(), &fakePeering2To1, serviceName).Return(nil)
+				r.DeleteResource(gomockinternal.AContext(), &fakePeering1To3, serviceName).Return(notDoneError)
+				r.DeleteResource(gomockinternal.AContext(), &fakePeering3To1, serviceName).Return(nil)
+				p.UpdateDeleteStatus(infrav1.VnetPeeringReadyCondition, serviceName, notDoneError)
 			},
 		},
 	}
@@ -528,13 +341,13 @@ func TestDeleteVnetPeerings(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			defer mockCtrl.Finish()
 			scopeMock := mock_vnetpeerings.NewMockVnetPeeringScope(mockCtrl)
-			clientMock := mock_vnetpeerings.NewMockClient(mockCtrl)
+			asyncMock := mock_async.NewMockReconciler(mockCtrl)
 
-			tc.expect(scopeMock.EXPECT(), clientMock.EXPECT())
+			tc.expect(scopeMock.EXPECT(), asyncMock.EXPECT())
 
 			s := &Service{
-				Scope:  scopeMock,
-				Client: clientMock,
+				Scope:      scopeMock,
+				Reconciler: asyncMock,
 			}
 
 			err := s.Delete(context.TODO())

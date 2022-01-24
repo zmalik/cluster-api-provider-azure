@@ -19,91 +19,81 @@ package vnetpeerings
 import (
 	"context"
 
-	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2021-02-01/network"
-	"github.com/Azure/go-autorest/autorest/to"
-	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
-
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
+	"sigs.k8s.io/cluster-api-provider-azure/azure/services/async"
+	"sigs.k8s.io/cluster-api-provider-azure/util/reconciler"
 	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
 )
 
+const serviceName = "vnetpeerings"
+
 // VnetPeeringScope defines the scope interface for a subnet service.
 type VnetPeeringScope interface {
-	logr.Logger
 	azure.Authorizer
-	Vnet() *infrav1.VnetSpec
-	ClusterName() string
-	SubscriptionID() string
-	VnetPeeringSpecs() []azure.VnetPeeringSpec
+	azure.AsyncStatusUpdater
+	VnetPeeringSpecs() []azure.ResourceSpecGetter
 }
 
 // Service provides operations on Azure resources.
 type Service struct {
 	Scope VnetPeeringScope
-	Client
+	async.Reconciler
 }
 
 // New creates a new service.
 func New(scope VnetPeeringScope) *Service {
+	Client := NewClient(scope)
 	return &Service{
-		Scope:  scope,
-		Client: NewClient(scope),
+		Scope:      scope,
+		Reconciler: async.New(scope, Client, Client),
 	}
 }
 
 // Reconcile gets/creates/updates a peering.
 func (s *Service) Reconcile(ctx context.Context) error {
-	ctx, span := tele.Tracer().Start(ctx, "vnetpeerings.Service.Reconcile")
-	defer span.End()
+	ctx, _, done := tele.StartSpanWithLogger(ctx, "vnetpeerings.Service.Reconcile")
+	defer done()
 
+	ctx, cancel := context.WithTimeout(ctx, reconciler.DefaultAzureServiceReconcileTimeout)
+	defer cancel()
+
+	// We go through the list of VnetPeeringSpecs to reconcile each one, independently of the result of the previous one.
+	// If multiple errors occur, we return the most pressing one.
+	//  Order of precedence (highest -> lowest) is: error that is not an operationNotDoneError (i.e. error creating) -> operationNotDoneError (i.e. creating in progress) -> no error (i.e. created)
+	var result error
 	for _, peeringSpec := range s.Scope.VnetPeeringSpecs() {
-		vnetID := azure.VNetID(s.Scope.SubscriptionID(), peeringSpec.RemoteResourceGroup, peeringSpec.RemoteVnetName)
-		peeringProperties := network.VirtualNetworkPeeringPropertiesFormat{
-			RemoteVirtualNetwork: &network.SubResource{
-				ID: to.StringPtr(vnetID),
-			},
+		if _, err := s.CreateResource(ctx, peeringSpec, serviceName); err != nil {
+			if !azure.IsOperationNotDoneError(err) || result == nil {
+				result = err
+			}
 		}
-
-		s.Scope.V(2).Info("creating peering", "peering", peeringSpec.PeeringName, "from", "vnet", peeringSpec.SourceVnetName, "to", "vnet", peeringSpec.RemoteVnetName)
-		err := s.Client.CreateOrUpdate(
-			ctx,
-			peeringSpec.SourceResourceGroup,
-			peeringSpec.SourceVnetName,
-			peeringSpec.PeeringName,
-			network.VirtualNetworkPeering{
-				VirtualNetworkPeeringPropertiesFormat: &peeringProperties,
-			},
-		)
-
-		if err != nil {
-			return errors.Wrapf(err, "failed to create peering %s in resource group %s", peeringSpec.PeeringName, s.Scope.Vnet().ResourceGroup)
-		}
-
-		s.Scope.V(2).Info("successfully created peering", "peering", peeringSpec.PeeringName, "from", "vnet", peeringSpec.SourceVnetName, "to", "vnet", peeringSpec.RemoteVnetName)
 	}
 
-	return nil
+	s.Scope.UpdatePutStatus(infrav1.VnetPeeringReadyCondition, serviceName, result)
+	return result
 }
 
 // Delete deletes the peering with the provided name.
 func (s *Service) Delete(ctx context.Context) error {
-	ctx, span := tele.Tracer().Start(ctx, "vnetpeerings.Service.Delete")
-	defer span.End()
+	ctx, _, done := tele.StartSpanWithLogger(ctx, "vnetpeerings.Service.Delete")
+	defer done()
+
+	ctx, cancel := context.WithTimeout(ctx, reconciler.DefaultAzureServiceReconcileTimeout)
+	defer cancel()
+
+	var result error
+
+	// We go through the list of VnetPeeringSpecs to delete each one, independently of the result of the previous one.
+	// If multiple errors occur, we return the most pressing one.
+	//  Order of precedence (highest -> lowest) is: error that is not an operationNotDoneError (i.e. error deleting) -> operationNotDoneError (i.e. deleting in progress) -> no error (i.e. deleted)
 	for _, peeringSpec := range s.Scope.VnetPeeringSpecs() {
-		s.Scope.V(2).Info("deleting peering in vnets", "vnet1", peeringSpec.SourceVnetName, "and", "vnet2", peeringSpec.RemoteVnetName)
-		err := s.Client.Delete(ctx, peeringSpec.SourceResourceGroup, peeringSpec.SourceVnetName, peeringSpec.PeeringName)
-		if err != nil && azure.ResourceNotFound(err) {
-			// already deleted
-			continue
+		if err := s.DeleteResource(ctx, peeringSpec, serviceName); err != nil {
+			if !azure.IsOperationNotDoneError(err) || result == nil {
+				result = err
+			}
 		}
-		if err != nil {
-			return errors.Wrapf(err, "failed to delete peering %s in vnet %s and resource group %s", peeringSpec.PeeringName, peeringSpec.SourceVnetName, peeringSpec.SourceResourceGroup)
-		}
-
-		s.Scope.V(2).Info("successfully deleted peering in vnet", "peering", peeringSpec.PeeringName, "vnet", peeringSpec.SourceVnetName)
 	}
-
-	return nil
+	s.Scope.UpdateDeleteStatus(infrav1.VnetPeeringReadyCondition, serviceName, result)
+	return result
 }

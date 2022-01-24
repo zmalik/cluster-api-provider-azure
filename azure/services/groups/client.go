@@ -31,10 +31,11 @@ import (
 
 // client wraps go-sdk.
 type client interface {
-	Get(context.Context, string) (resources.Group, error)
-	CreateOrUpdateAsync(context.Context, azure.ResourceSpecGetter) (azureautorest.FutureAPI, error)
-	DeleteAsync(context.Context, azure.ResourceSpecGetter) (azureautorest.FutureAPI, error)
-	IsDone(context.Context, azureautorest.FutureAPI) (bool, error)
+	Get(context.Context, azure.ResourceSpecGetter) (interface{}, error)
+	CreateOrUpdateAsync(ctx context.Context, spec azure.ResourceSpecGetter, parameters interface{}) (result interface{}, future azureautorest.FutureAPI, err error)
+	DeleteAsync(ctx context.Context, spec azure.ResourceSpecGetter) (future azureautorest.FutureAPI, err error)
+	IsDone(ctx context.Context, future azureautorest.FutureAPI) (isDone bool, err error)
+	Result(ctx context.Context, future azureautorest.FutureAPI, futureType string) (result interface{}, err error)
 }
 
 // azureClient contains the Azure go-sdk Client.
@@ -60,29 +61,26 @@ func newGroupsClient(subscriptionID string, baseURI string, authorizer autorest.
 }
 
 // Get gets a resource group.
-func (ac *azureClient) Get(ctx context.Context, name string) (resources.Group, error) {
+func (ac *azureClient) Get(ctx context.Context, spec azure.ResourceSpecGetter) (result interface{}, err error) {
 	ctx, _, done := tele.StartSpanWithLogger(ctx, "groups.AzureClient.Get")
 	defer done()
 
-	return ac.groups.Get(ctx, name)
+	return ac.groups.Get(ctx, spec.ResourceName())
 }
 
 // CreateOrUpdateAsync creates or updates a resource group.
 // Creating a resource group is not a long running operation, so we don't ever return a future.
-func (ac *azureClient) CreateOrUpdateAsync(ctx context.Context, spec azure.ResourceSpecGetter) (azureautorest.FutureAPI, error) {
+func (ac *azureClient) CreateOrUpdateAsync(ctx context.Context, spec azure.ResourceSpecGetter, parameters interface{}) (result interface{}, future azureautorest.FutureAPI, err error) {
 	ctx, _, done := tele.StartSpanWithLogger(ctx, "groups.AzureClient.CreateOrUpdate")
 	defer done()
 
-	group, err := ac.resourceGroupParams(ctx, spec)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get desired parameters for group %s", spec.ResourceName())
-	} else if group == nil {
-		// nothing to do here
-		return nil, nil
+	group, ok := parameters.(resources.Group)
+	if !ok {
+		return nil, nil, errors.Errorf("%T is not a resources.Group", parameters)
 	}
 
-	_, err = ac.groups.CreateOrUpdate(ctx, spec.ResourceName(), *group)
-	return nil, err
+	result, err = ac.groups.CreateOrUpdate(ctx, spec.ResourceName(), group)
+	return result, nil, err
 }
 
 // DeleteAsync deletes a resource group asynchronously. DeleteAsync sends a DELETE
@@ -90,11 +88,11 @@ func (ac *azureClient) CreateOrUpdateAsync(ctx context.Context, spec azure.Resou
 // progress of the operation.
 //
 // NOTE: When you delete a resource group, all of its resources are also deleted.
-func (ac *azureClient) DeleteAsync(ctx context.Context, spec azure.ResourceSpecGetter) (azureautorest.FutureAPI, error) {
+func (ac *azureClient) DeleteAsync(ctx context.Context, spec azure.ResourceSpecGetter) (future azureautorest.FutureAPI, err error) {
 	ctx, _, done := tele.StartSpanWithLogger(ctx, "groups.AzureClient.Delete")
 	defer done()
 
-	future, err := ac.groups.Delete(ctx, spec.ResourceName())
+	deleteFuture, err := ac.groups.Delete(ctx, spec.ResourceName())
 	if err != nil {
 		return nil, err
 	}
@@ -102,23 +100,23 @@ func (ac *azureClient) DeleteAsync(ctx context.Context, spec azure.ResourceSpecG
 	ctx, cancel := context.WithTimeout(ctx, reconciler.DefaultAzureCallTimeout)
 	defer cancel()
 
-	err = future.WaitForCompletionRef(ctx, ac.groups.Client)
+	err = deleteFuture.WaitForCompletionRef(ctx, ac.groups.Client)
 	if err != nil {
 		// if an error occurs, return the future.
 		// this means the long-running operation didn't finish in the specified timeout.
-		return &future, err
+		return &deleteFuture, err
 	}
-	_, err = future.Result(ac.groups)
+	_, err = deleteFuture.Result(ac.groups)
 	// if the operation completed, return a nil future.
 	return nil, err
 }
 
 // IsDone returns true if the long-running operation has completed.
-func (ac *azureClient) IsDone(ctx context.Context, future azureautorest.FutureAPI) (bool, error) {
+func (ac *azureClient) IsDone(ctx context.Context, future azureautorest.FutureAPI) (isDone bool, err error) {
 	ctx, _, done := tele.StartSpanWithLogger(ctx, "groups.AzureClient.IsDone")
 	defer done()
 
-	isDone, err := future.DoneWithContext(ctx, ac.groups)
+	isDone, err = future.DoneWithContext(ctx, ac.groups)
 	if err != nil {
 		return false, errors.Wrap(err, "failed checking if the operation was complete")
 	}
@@ -126,38 +124,8 @@ func (ac *azureClient) IsDone(ctx context.Context, future azureautorest.FutureAP
 	return isDone, nil
 }
 
-// resourceGroupParams returns the desired resource group parameters from the given spec.
-func (ac *azureClient) resourceGroupParams(ctx context.Context, spec azure.ResourceSpecGetter) (*resources.Group, error) {
-	ctx, _, done := tele.StartSpanWithLogger(ctx, "groups.AzureClient.resourceGroupParams")
-	defer done()
-
-	var params interface{}
-
-	existingRG, err := ac.Get(ctx, spec.ResourceName())
-	if azure.ResourceNotFound(err) {
-		// rg doesn't exist, create it from scratch.
-		params, err = spec.Parameters(nil)
-		if err != nil {
-			return nil, err
-		}
-	} else if err != nil {
-		return nil, errors.Wrapf(err, "failed to get RG %s", spec.ResourceName())
-	} else {
-		// rg already exists
-		params, err = spec.Parameters(existingRG)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	rg, ok := params.(resources.Group)
-	if !ok {
-		if params == nil {
-			// nothing to do here.
-			return nil, nil
-		}
-		return nil, errors.Errorf("%T is not a resources.Group", params)
-	}
-
-	return &rg, nil
+// Result fetches the result of a long-running operation future.
+func (ac *azureClient) Result(ctx context.Context, future azureautorest.FutureAPI, futureType string) (result interface{}, err error) {
+	// Result is a no-op for resource groups as only Delete operations return a future.
+	return nil, nil
 }

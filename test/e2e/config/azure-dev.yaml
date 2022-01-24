@@ -17,8 +17,17 @@ providers:
       replacements:
         - old: "imagePullPolicy: Always"
           new: "imagePullPolicy: IfNotPresent"
-    - name: v1.0.0
-      value: https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.0.0/core-components.yaml
+    - name: v0.4.4 # latest published release in the v1alpha4 series; this is used for v1alpha4 --> v1beta1 clusterctl upgrades test only.
+      value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v0.4.4/core-components.yaml"
+      type: "url"
+      contract: v1alpha4
+      replacements:
+        - old: --metrics-addr=127.0.0.1:8080
+          new: --metrics-addr=:8080
+      files:
+        - sourcePath: "../data/shared/v1alpha4/metadata.yaml"
+    - name: v1.0.2
+      value: https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.0.2/core-components.yaml
       type: url
       files:
       - sourcePath: "../data/shared/v1beta1/metadata.yaml"
@@ -39,8 +48,17 @@ providers:
       replacements:
         - old: "imagePullPolicy: Always"
           new: "imagePullPolicy: IfNotPresent"
-    - name: v1.0.0
-      value: https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.0.0/bootstrap-components.yaml
+    - name: v0.4.4 # latest published release in the v1alpha4 series; this is used for v1alpha4 --> v1beta1 clusterctl upgrades test only.
+      value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v0.4.4/bootstrap-components.yaml"
+      type: "url"
+      contract: v1alpha4
+      replacements:
+        - old: --metrics-addr=127.0.0.1:8080
+          new: --metrics-addr=:8080
+      files:
+        - sourcePath: "../data/shared/v1alpha4/metadata.yaml"
+    - name: v1.0.2
+      value: https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.0.2/bootstrap-components.yaml
       type: url
       files:
       - sourcePath: "../data/shared/v1beta1/metadata.yaml"
@@ -60,8 +78,17 @@ providers:
       replacements:
         - old: "imagePullPolicy: Always"
           new: "imagePullPolicy: IfNotPresent"
-    - name: v1.0.0
-      value: https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.0.0/control-plane-components.yaml
+    - name: v0.4.4 # latest published release in the v1alpha4 series; this is used for v1alpha4 --> v1beta1 clusterctl upgrades test only.
+      value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v0.4.4/control-plane-components.yaml"
+      type: "url"
+      contract: v1alpha4
+      replacements:
+        - old: --metrics-addr=127.0.0.1:8080
+          new: --metrics-addr=:8080
+      files:
+        - sourcePath: "../data/shared/v1alpha4/metadata.yaml"
+    - name: v1.0.2
+      value: https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.0.2/control-plane-components.yaml
       type: url
       files:
       - sourcePath: "../data/shared/v1beta1/metadata.yaml"
@@ -83,6 +110,17 @@ providers:
       replacements:
       - old: "imagePullPolicy: Always"
         new: "imagePullPolicy: IfNotPresent"
+    - name: v0.5.3 # latest published release in the v1alpha4 series; this is used for v1alpha4 --> v1beta1 clusterctl upgrades test only.
+      value: https://github.com/kubernetes-sigs/cluster-api-provider-azure/releases/download/v0.5.3/infrastructure-components.yaml
+      type: url
+      contract: v1alpha4
+      files:
+      - sourcePath: "../data/shared/v1alpha4_provider/metadata.yaml"
+      - sourcePath: "../data/infrastructure-azure/v1alpha4/cluster-template-prow.yaml"
+        targetName: "cluster-template.yaml"
+      replacements:
+      - old: "imagePullPolicy: Always"
+        new: "imagePullPolicy: IfNotPresent"
     - name: v1.0.99 # next; use manifest from source files
       value: "${PWD}/config/default"
       files:
@@ -92,19 +130,15 @@ providers:
       - sourcePath: "../data/infrastructure-azure/v1beta1/cluster-template.yaml"
         targetName: "cluster-template-management.yaml"
       - sourcePath: "../data/infrastructure-azure/v1beta1/cluster-template-kcp-adoption.yaml"
-        targetName: "cluster-template-kcp-adoption.yaml"
-      - sourcePath: "${PWD}/templates/test/ci/cluster-template-prow-ipv6.yaml"
-        targetName: "cluster-template-ipv6.yaml"
       - sourcePath: "../data/infrastructure-azure/v1beta1/cluster-template-md-remediation.yaml"
-        targetName: "cluster-template-md-remediation.yaml"
       - sourcePath: "../data/infrastructure-azure/v1beta1/cluster-template-kcp-remediation.yaml"
-        targetName: "cluster-template-kcp-remediation.yaml"
       - sourcePath: "../data/infrastructure-azure/v1beta1/cluster-template-kcp-scale-in.yaml"
-        targetName: "cluster-template-kcp-scale-in.yaml"
       - sourcePath: "../data/infrastructure-azure/v1beta1/cluster-template-node-drain.yaml"
-        targetName: "cluster-template-node-drain.yaml"
+      - sourcePath: "../data/infrastructure-azure/v1beta1/cluster-template-upgrades.yaml"
       - sourcePath: "${PWD}/templates/test/ci/cluster-template-prow-machine-pool.yaml"
         targetName: "cluster-template-machine-pool.yaml"
+      - sourcePath: "${PWD}/templates/test/ci/cluster-template-prow-ipv6.yaml"
+        targetName: "cluster-template-ipv6.yaml"
       - sourcePath: "${PWD}/templates/test/ci/cluster-template-prow-nvidia-gpu.yaml"
         targetName: "cluster-template-nvidia-gpu.yaml"
       - sourcePath: "${PWD}/templates/test/ci/cluster-template-prow-private.yaml"
@@ -138,18 +172,17 @@ providers:
         new: "--v=2"
 
 variables:
-  KUBERNETES_VERSION: "${KUBERNETES_VERSION:-v1.22.1}"
-  AKS_KUBERNETES_VERSION: "${KUBERNETES_VERSION:-v1.19.9}"
+  AKS_KUBERNETES_VERSION: "${KUBERNETES_VERSION:-stable-1.19}"
+  KUBERNETES_VERSION: "${KUBERNETES_VERSION:=v1.22.5}"
   ETCD_VERSION_UPGRADE_TO: "3.5.0-0"
   COREDNS_VERSION_UPGRADE_TO: "v1.8.4"
-  KUBERNETES_VERSION_UPGRADE_TO: "${KUBERNETES_VERSION_UPGRADE_TO:-v1.22.2}"
-  KUBERNETES_VERSION_UPGRADE_FROM: "${KUBERNETES_VERSION_UPGRADE_FROM:-v1.22.1}"
+  KUBERNETES_VERSION_UPGRADE_TO: "${KUBERNETES_VERSION_UPGRADE_TO:=v1.22.5}"
+  KUBERNETES_VERSION_UPGRADE_FROM: "${KUBERNETES_VERSION_UPGRADE_FROM:-v1.22.1}" # this needs to be 1.22+ to support mixed windows/linux clusters until we update CAPI to v1.0.1.
   CNI: "${PWD}/templates/addons/calico.yaml"
   REDACT_LOG_SCRIPT: "${PWD}/hack/log/redact.sh"
   EXP_AKS: "true"
   EXP_MACHINE_POOL: "true"
   EXP_CLUSTER_RESOURCE_SET: "true"
-  CONFORMANCE_CI_ARTIFACTS_KUBERNETES_VERSION: "v1.22.1"
   CONFORMANCE_WORKER_MACHINE_COUNT: "2"
   CONFORMANCE_CONTROL_PLANE_MACHINE_COUNT: "${CONFORMANCE_CONTROL_PLANE_MACHINE_COUNT:-1}"
   CONFORMANCE_IMAGE: "${CONFORMANCE_IMAGE:-}"
@@ -164,6 +197,8 @@ variables:
   INIT_WITH_BINARY: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v0.3.23/clusterctl-{OS}-{ARCH}"
   INIT_WITH_PROVIDERS_CONTRACT: "v1alpha3"
   INIT_WITH_KUBERNETES_VERSION: "v1.21.2"
+  KUBETEST_CONFIGURATION: "./data/kubetest/conformance.yaml"
+  WINDOWS_CONTAINERD_URL: "${WINDOWS_CONTAINERD_URL:-}"
 
 intervals:
   default/wait-controllers: ["3m", "10s"]

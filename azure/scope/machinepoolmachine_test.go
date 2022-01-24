@@ -27,7 +27,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/klog/v2/klogr"
 	"sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
 	mock_scope "sigs.k8s.io/cluster-api-provider-azure/azure/scope/mocks"
@@ -127,7 +126,7 @@ func TestNewMachinePoolMachineScope(t *testing.T) {
 			if c.Err != "" {
 				g.Expect(err).To(MatchError(c.Err))
 			} else {
-				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(s).ToNot(BeNil())
 			}
 		})
@@ -298,7 +297,7 @@ func TestMachineScope_UpdateStatus(t *testing.T) {
 			})
 			params.AzureMachinePoolMachine = ampm
 			s, err := NewMachinePoolMachineScope(params)
-			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			g.Expect(s).ToNot(BeNil())
 			s.instance = instance
 			s.workloadNodeGetter = mockClient
@@ -396,9 +395,8 @@ func TestMachinePoolMachineScope_CordonAndDrain(t *testing.T) {
 			})
 			params.AzureMachinePoolMachine = ampm
 			s, err := NewMachinePoolMachineScope(params)
-			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			g.Expect(s).ToNot(BeNil())
-			s.Logger = klogr.New()
 			s.workloadNodeGetter = mockClient
 
 			err = s.CordonAndDrain(context.TODO())

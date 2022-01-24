@@ -20,12 +20,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/Azure/go-autorest/autorest/azure"
-
 	"github.com/Azure/go-autorest/autorest"
+	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/blang/semver"
 	"github.com/pkg/errors"
-
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
 	"sigs.k8s.io/cluster-api-provider-azure/version"
@@ -109,7 +107,7 @@ func GenerateFrontendIPConfigName(lbName string) string {
 	return fmt.Sprintf("%s-%s", lbName, "frontEnd")
 }
 
-// GenerateNatGatewayIPName generates a nat gateway IP name.
+// GenerateNatGatewayIPName generates a NAT gateway IP name.
 func GenerateNatGatewayIPName(clusterName, subnetName string) string {
 	return fmt.Sprintf("pip-%s-%s-natgw", clusterName, subnetName)
 }
@@ -139,9 +137,9 @@ func GeneratePrivateDNSZoneName(clusterName string) string {
 	return fmt.Sprintf("%s.capz.io", clusterName)
 }
 
-// GeneratePrivateFQDN generates FQDN for a private API Server.
-func GeneratePrivateFQDN(clusterName string) string {
-	return fmt.Sprintf("%s.%s", PrivateAPIServerHostname, GeneratePrivateDNSZoneName(clusterName))
+// GeneratePrivateFQDN generates the FQDN for a private API Server based on the private DNS zone name.
+func GeneratePrivateFQDN(zoneName string) string {
+	return fmt.Sprintf("%s.%s", PrivateAPIServerHostname, zoneName)
 }
 
 // GenerateVNetLinkName generates the name of a virtual network link name based on the vnet name.
@@ -222,7 +220,7 @@ func SecurityGroupID(subscriptionID, resourceGroup, nsgName string) string {
 	return fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/networkSecurityGroups/%s", subscriptionID, resourceGroup, nsgName)
 }
 
-// NatGatewayID returns the azure resource ID for a given nat gateway.
+// NatGatewayID returns the azure resource ID for a given NAT gateway.
 func NatGatewayID(subscriptionID, resourceGroup, natgatewayName string) string {
 	return fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/natGateways/%s", subscriptionID, resourceGroup, natgatewayName)
 }

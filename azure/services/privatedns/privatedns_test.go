@@ -22,17 +22,14 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/services/privatedns/mgmt/2018-09-01/privatedns"
-	"github.com/Azure/go-autorest/autorest/to"
-	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
-	"sigs.k8s.io/cluster-api-provider-azure/azure/services/privatedns/mock_privatedns"
-	gomockinternal "sigs.k8s.io/cluster-api-provider-azure/internal/test/matchers/gomock"
-
 	"github.com/Azure/go-autorest/autorest"
+	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/gomega"
+	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
-
-	"k8s.io/klog/v2/klogr"
+	"sigs.k8s.io/cluster-api-provider-azure/azure/services/privatedns/mock_privatedns"
+	gomockinternal "sigs.k8s.io/cluster-api-provider-azure/internal/test/matchers/gomock"
 )
 
 func TestReconcilePrivateDNS(t *testing.T) {
@@ -52,7 +49,6 @@ func TestReconcilePrivateDNS(t *testing.T) {
 			name:          "create ipv4 private dns successfully",
 			expectedError: "",
 			expect: func(s *mock_privatedns.MockScopeMockRecorder, m *mock_privatedns.MockclientMockRecorder) {
-				s.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
 				s.PrivateDNSSpec().Return(&azure.PrivateDNSSpec{
 					ZoneName: "my-dns-zone",
 					Links: []azure.PrivateDNSLinkSpec{
@@ -70,8 +66,19 @@ func TestReconcilePrivateDNS(t *testing.T) {
 					},
 				})
 				s.ResourceGroup().AnyTimes().Return("my-rg")
+				s.ClusterName().AnyTimes().Return("my-cluster")
+				s.AdditionalTags().AnyTimes().Return(infrav1.Tags{})
 				s.SubscriptionID().Return("123")
-				m.CreateOrUpdateZone(gomockinternal.AContext(), "my-rg", "my-dns-zone", privatedns.PrivateZone{Location: to.StringPtr(azure.Global)})
+				m.GetZone(gomockinternal.AContext(), "my-rg", "my-dns-zone").
+					Return(privatedns.PrivateZone{}, autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 404}, "Not found"))
+				m.CreateOrUpdateZone(gomockinternal.AContext(), "my-rg", "my-dns-zone", privatedns.PrivateZone{
+					Location: to.StringPtr(azure.Global),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+					},
+				})
+				m.GetLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link").
+					Return(privatedns.VirtualNetworkLink{}, autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 404}, "Not found"))
 				m.CreateOrUpdateLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link", privatedns.VirtualNetworkLink{
 					VirtualNetworkLinkProperties: &privatedns.VirtualNetworkLinkProperties{
 						VirtualNetwork: &privatedns.SubResource{
@@ -80,6 +87,9 @@ func TestReconcilePrivateDNS(t *testing.T) {
 						RegistrationEnabled: to.BoolPtr(false),
 					},
 					Location: to.StringPtr(azure.Global),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+					},
 				})
 				m.CreateOrUpdateRecordSet(gomockinternal.AContext(), "my-rg", "my-dns-zone", privatedns.A, "hostname-1", privatedns.RecordSet{
 					RecordSetProperties: &privatedns.RecordSetProperties{
@@ -97,7 +107,6 @@ func TestReconcilePrivateDNS(t *testing.T) {
 			name:          "create multiple ipv4 private dns successfully",
 			expectedError: "",
 			expect: func(s *mock_privatedns.MockScopeMockRecorder, m *mock_privatedns.MockclientMockRecorder) {
-				s.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
 				s.PrivateDNSSpec().Return(&azure.PrivateDNSSpec{
 					ZoneName: "my-dns-zone",
 					Links: []azure.PrivateDNSLinkSpec{
@@ -120,8 +129,19 @@ func TestReconcilePrivateDNS(t *testing.T) {
 					},
 				})
 				s.ResourceGroup().AnyTimes().Return("my-rg")
+				s.ClusterName().AnyTimes().Return("my-cluster")
+				s.AdditionalTags().AnyTimes().Return(infrav1.Tags{})
 				s.SubscriptionID().AnyTimes().Return("123")
-				m.CreateOrUpdateZone(gomockinternal.AContext(), "my-rg", "my-dns-zone", privatedns.PrivateZone{Location: to.StringPtr(azure.Global)})
+				m.GetZone(gomockinternal.AContext(), "my-rg", "my-dns-zone").
+					Return(privatedns.PrivateZone{}, autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 404}, "Not found"))
+				m.CreateOrUpdateZone(gomockinternal.AContext(), "my-rg", "my-dns-zone", privatedns.PrivateZone{
+					Location: to.StringPtr(azure.Global),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+					},
+				})
+				m.GetLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-1").
+					Return(privatedns.VirtualNetworkLink{}, autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 404}, "Not found"))
 				m.CreateOrUpdateLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-1", privatedns.VirtualNetworkLink{
 					VirtualNetworkLinkProperties: &privatedns.VirtualNetworkLinkProperties{
 						VirtualNetwork: &privatedns.SubResource{
@@ -130,7 +150,12 @@ func TestReconcilePrivateDNS(t *testing.T) {
 						RegistrationEnabled: to.BoolPtr(false),
 					},
 					Location: to.StringPtr(azure.Global),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+					},
 				})
+				m.GetLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-2").
+					Return(privatedns.VirtualNetworkLink{}, autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 404}, "Not found"))
 				m.CreateOrUpdateLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-2", privatedns.VirtualNetworkLink{
 					VirtualNetworkLinkProperties: &privatedns.VirtualNetworkLinkProperties{
 						VirtualNetwork: &privatedns.SubResource{
@@ -139,6 +164,9 @@ func TestReconcilePrivateDNS(t *testing.T) {
 						RegistrationEnabled: to.BoolPtr(false),
 					},
 					Location: to.StringPtr(azure.Global),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+					},
 				})
 				m.CreateOrUpdateRecordSet(gomockinternal.AContext(), "my-rg", "my-dns-zone", privatedns.A, "hostname-1", privatedns.RecordSet{
 					RecordSetProperties: &privatedns.RecordSetProperties{
@@ -156,7 +184,6 @@ func TestReconcilePrivateDNS(t *testing.T) {
 			name:          "create ipv6 private dns successfully",
 			expectedError: "",
 			expect: func(s *mock_privatedns.MockScopeMockRecorder, m *mock_privatedns.MockclientMockRecorder) {
-				s.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
 				s.PrivateDNSSpec().Return(&azure.PrivateDNSSpec{
 					ZoneName: "my-dns-zone",
 					Links: []azure.PrivateDNSLinkSpec{
@@ -174,8 +201,19 @@ func TestReconcilePrivateDNS(t *testing.T) {
 					},
 				})
 				s.ResourceGroup().AnyTimes().Return("my-rg")
-				s.SubscriptionID().Return("123")
-				m.CreateOrUpdateZone(gomockinternal.AContext(), "my-rg", "my-dns-zone", privatedns.PrivateZone{Location: to.StringPtr(azure.Global)})
+				s.ClusterName().AnyTimes().Return("my-cluster")
+				s.AdditionalTags().AnyTimes().Return(infrav1.Tags{})
+				s.SubscriptionID().AnyTimes().Return("123")
+				m.GetZone(gomockinternal.AContext(), "my-rg", "my-dns-zone").
+					Return(privatedns.PrivateZone{}, autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 404}, "Not found"))
+				m.CreateOrUpdateZone(gomockinternal.AContext(), "my-rg", "my-dns-zone", privatedns.PrivateZone{
+					Location: to.StringPtr(azure.Global),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+					},
+				})
+				m.GetLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link").
+					Return(privatedns.VirtualNetworkLink{}, autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 404}, "Not found"))
 				m.CreateOrUpdateLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link", privatedns.VirtualNetworkLink{
 					VirtualNetworkLinkProperties: &privatedns.VirtualNetworkLinkProperties{
 						VirtualNetwork: &privatedns.SubResource{
@@ -184,6 +222,9 @@ func TestReconcilePrivateDNS(t *testing.T) {
 						RegistrationEnabled: to.BoolPtr(false),
 					},
 					Location: to.StringPtr(azure.Global),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+					},
 				})
 				m.CreateOrUpdateRecordSet(gomockinternal.AContext(), "my-rg", "my-dns-zone", privatedns.AAAA, "hostname-2", privatedns.RecordSet{
 					RecordSetProperties: &privatedns.RecordSetProperties{
@@ -201,7 +242,6 @@ func TestReconcilePrivateDNS(t *testing.T) {
 			name:          "create multiple ipv6 private dns successfully",
 			expectedError: "",
 			expect: func(s *mock_privatedns.MockScopeMockRecorder, m *mock_privatedns.MockclientMockRecorder) {
-				s.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
 				s.PrivateDNSSpec().Return(&azure.PrivateDNSSpec{
 					ZoneName: "my-dns-zone",
 					Links: []azure.PrivateDNSLinkSpec{
@@ -224,8 +264,19 @@ func TestReconcilePrivateDNS(t *testing.T) {
 					},
 				})
 				s.ResourceGroup().AnyTimes().Return("my-rg")
+				s.ClusterName().AnyTimes().Return("my-cluster")
+				s.AdditionalTags().AnyTimes().Return(infrav1.Tags{})
 				s.SubscriptionID().AnyTimes().Return("123")
-				m.CreateOrUpdateZone(gomockinternal.AContext(), "my-rg", "my-dns-zone", privatedns.PrivateZone{Location: to.StringPtr(azure.Global)})
+				m.GetZone(gomockinternal.AContext(), "my-rg", "my-dns-zone").
+					Return(privatedns.PrivateZone{}, autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 404}, "Not found"))
+				m.CreateOrUpdateZone(gomockinternal.AContext(), "my-rg", "my-dns-zone", privatedns.PrivateZone{
+					Location: to.StringPtr(azure.Global),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+					},
+				})
+				m.GetLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-1").
+					Return(privatedns.VirtualNetworkLink{}, autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 404}, "Not found"))
 				m.CreateOrUpdateLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-1", privatedns.VirtualNetworkLink{
 					VirtualNetworkLinkProperties: &privatedns.VirtualNetworkLinkProperties{
 						VirtualNetwork: &privatedns.SubResource{
@@ -234,7 +285,12 @@ func TestReconcilePrivateDNS(t *testing.T) {
 						RegistrationEnabled: to.BoolPtr(false),
 					},
 					Location: to.StringPtr(azure.Global),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+					},
 				})
+				m.GetLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-2").
+					Return(privatedns.VirtualNetworkLink{}, autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 404}, "Not found"))
 				m.CreateOrUpdateLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-2", privatedns.VirtualNetworkLink{
 					VirtualNetworkLinkProperties: &privatedns.VirtualNetworkLinkProperties{
 						VirtualNetwork: &privatedns.SubResource{
@@ -243,6 +299,9 @@ func TestReconcilePrivateDNS(t *testing.T) {
 						RegistrationEnabled: to.BoolPtr(false),
 					},
 					Location: to.StringPtr(azure.Global),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+					},
 				})
 				m.CreateOrUpdateRecordSet(gomockinternal.AContext(), "my-rg", "my-dns-zone", privatedns.AAAA, "hostname-2", privatedns.RecordSet{
 					RecordSetProperties: &privatedns.RecordSetProperties{
@@ -260,7 +319,6 @@ func TestReconcilePrivateDNS(t *testing.T) {
 			name:          "link creation fails",
 			expectedError: "failed to create virtual network link my-link: #: Internal Server Error: StatusCode=500",
 			expect: func(s *mock_privatedns.MockScopeMockRecorder, m *mock_privatedns.MockclientMockRecorder) {
-				s.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
 				s.PrivateDNSSpec().Return(&azure.PrivateDNSSpec{
 					ZoneName: "my-dns-zone",
 					Links: []azure.PrivateDNSLinkSpec{
@@ -278,8 +336,19 @@ func TestReconcilePrivateDNS(t *testing.T) {
 					},
 				})
 				s.ResourceGroup().AnyTimes().Return("my-rg")
-				s.SubscriptionID().Return("123")
-				m.CreateOrUpdateZone(gomockinternal.AContext(), "my-rg", "my-dns-zone", privatedns.PrivateZone{Location: to.StringPtr(azure.Global)})
+				s.ClusterName().AnyTimes().Return("my-cluster")
+				s.AdditionalTags().AnyTimes().Return(infrav1.Tags{})
+				s.SubscriptionID().AnyTimes().Return("123")
+				m.GetZone(gomockinternal.AContext(), "my-rg", "my-dns-zone").
+					Return(privatedns.PrivateZone{}, autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 404}, "Not found"))
+				m.CreateOrUpdateZone(gomockinternal.AContext(), "my-rg", "my-dns-zone", privatedns.PrivateZone{
+					Location: to.StringPtr(azure.Global),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+					},
+				})
+				m.GetLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link").
+					Return(privatedns.VirtualNetworkLink{}, autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 404}, "Not found"))
 				m.CreateOrUpdateLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link", privatedns.VirtualNetworkLink{
 					VirtualNetworkLinkProperties: &privatedns.VirtualNetworkLinkProperties{
 						VirtualNetwork: &privatedns.SubResource{
@@ -288,6 +357,9 @@ func TestReconcilePrivateDNS(t *testing.T) {
 						RegistrationEnabled: to.BoolPtr(false),
 					},
 					Location: to.StringPtr(azure.Global),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+					},
 				}).Return(autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 500}, "Internal Server Error"))
 			},
 		},
@@ -295,7 +367,6 @@ func TestReconcilePrivateDNS(t *testing.T) {
 			name:          "creating multiple links fails",
 			expectedError: "failed to create virtual network link my-link-2: #: Internal Server Error: StatusCode=500",
 			expect: func(s *mock_privatedns.MockScopeMockRecorder, m *mock_privatedns.MockclientMockRecorder) {
-				s.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
 				s.PrivateDNSSpec().Return(&azure.PrivateDNSSpec{
 					ZoneName: "my-dns-zone",
 					Links: []azure.PrivateDNSLinkSpec{
@@ -323,8 +394,19 @@ func TestReconcilePrivateDNS(t *testing.T) {
 					},
 				})
 				s.ResourceGroup().AnyTimes().Return("my-rg")
+				s.ClusterName().AnyTimes().Return("my-cluster")
+				s.AdditionalTags().AnyTimes().Return(infrav1.Tags{})
 				s.SubscriptionID().AnyTimes().Return("123")
-				m.CreateOrUpdateZone(gomockinternal.AContext(), "my-rg", "my-dns-zone", privatedns.PrivateZone{Location: to.StringPtr(azure.Global)})
+				m.GetZone(gomockinternal.AContext(), "my-rg", "my-dns-zone").
+					Return(privatedns.PrivateZone{}, autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 404}, "Not found"))
+				m.CreateOrUpdateZone(gomockinternal.AContext(), "my-rg", "my-dns-zone", privatedns.PrivateZone{
+					Location: to.StringPtr(azure.Global),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+					},
+				})
+				m.GetLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-1").
+					Return(privatedns.VirtualNetworkLink{}, autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 404}, "Not found"))
 				m.CreateOrUpdateLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-1", privatedns.VirtualNetworkLink{
 					VirtualNetworkLinkProperties: &privatedns.VirtualNetworkLinkProperties{
 						VirtualNetwork: &privatedns.SubResource{
@@ -333,7 +415,12 @@ func TestReconcilePrivateDNS(t *testing.T) {
 						RegistrationEnabled: to.BoolPtr(false),
 					},
 					Location: to.StringPtr(azure.Global),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+					},
 				})
+				m.GetLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-2").
+					Return(privatedns.VirtualNetworkLink{}, autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 404}, "Not found"))
 				m.CreateOrUpdateLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-2", privatedns.VirtualNetworkLink{
 					VirtualNetworkLinkProperties: &privatedns.VirtualNetworkLinkProperties{
 						VirtualNetwork: &privatedns.SubResource{
@@ -342,6 +429,9 @@ func TestReconcilePrivateDNS(t *testing.T) {
 						RegistrationEnabled: to.BoolPtr(false),
 					},
 					Location: to.StringPtr(azure.Global),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+					},
 				}).Return(autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 500}, "Internal Server Error"))
 			},
 		},
@@ -386,15 +476,13 @@ func TestDeletePrivateDNS(t *testing.T) {
 			name:          "no private dns",
 			expectedError: "",
 			expect: func(s *mock_privatedns.MockScopeMockRecorder, m *mock_privatedns.MockclientMockRecorder) {
-				s.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
 				s.PrivateDNSSpec().Return(nil)
 			},
 		},
 		{
-			name:          "delete the dns zone",
+			name:          "delete the dns zone and vnet links managed by capz",
 			expectedError: "",
 			expect: func(s *mock_privatedns.MockScopeMockRecorder, m *mock_privatedns.MockclientMockRecorder) {
-				s.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
 				s.PrivateDNSSpec().Return(&azure.PrivateDNSSpec{
 					ZoneName: "my-dns-zone",
 					Links: []azure.PrivateDNSLinkSpec{
@@ -412,15 +500,55 @@ func TestDeletePrivateDNS(t *testing.T) {
 					},
 				})
 				s.ResourceGroup().AnyTimes().Return("my-rg")
+				s.ClusterName().AnyTimes().Return("my-cluster")
+				m.GetLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link").Return(privatedns.VirtualNetworkLink{
+					Name: to.StringPtr("my-link"),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+						"foo": to.StringPtr("bar"),
+					},
+				}, nil)
 				m.DeleteLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link")
+				m.GetZone(gomockinternal.AContext(), "my-rg", "my-dns-zone").Return(privatedns.PrivateZone{
+					Name: to.StringPtr("my-dns-zone"),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+						"foo": to.StringPtr("bar"),
+					},
+				}, nil)
 				m.DeleteZone(gomockinternal.AContext(), "my-rg", "my-dns-zone")
+			},
+		},
+		{
+			name:          "skip unmanaged private dns zone and vnet link deletion",
+			expectedError: "",
+			expect: func(s *mock_privatedns.MockScopeMockRecorder, m *mock_privatedns.MockclientMockRecorder) {
+				s.PrivateDNSSpec().Return(&azure.PrivateDNSSpec{
+					ZoneName: "my-dns-zone",
+					Links: []azure.PrivateDNSLinkSpec{
+						{
+							VNetName:          "my-vnet",
+							VNetResourceGroup: "vnet-rg",
+							LinkName:          "my-link",
+						},
+					},
+					Records: []infrav1.AddressRecord{
+						{
+							Hostname: "hostname-1",
+							IP:       "10.0.0.8",
+						},
+					},
+				})
+				s.ResourceGroup().AnyTimes().Return("my-rg")
+				s.ClusterName().AnyTimes().Return("my-cluster")
+				m.GetLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link")
+				m.GetZone(gomockinternal.AContext(), "my-rg", "my-dns-zone")
 			},
 		},
 		{
 			name:          "delete the dns zone with multiple links",
 			expectedError: "",
 			expect: func(s *mock_privatedns.MockScopeMockRecorder, m *mock_privatedns.MockclientMockRecorder) {
-				s.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
 				s.PrivateDNSSpec().Return(&azure.PrivateDNSSpec{
 					ZoneName: "my-dns-zone",
 					Links: []azure.PrivateDNSLinkSpec{
@@ -448,9 +576,38 @@ func TestDeletePrivateDNS(t *testing.T) {
 					},
 				})
 				s.ResourceGroup().AnyTimes().Return("my-rg")
+				s.ClusterName().AnyTimes().Return("my-cluster")
+				m.GetLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-1").Return(privatedns.VirtualNetworkLink{
+					Name: to.StringPtr("my-vnet"),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+						"foo": to.StringPtr("bar"),
+					},
+				}, nil)
 				m.DeleteLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-1")
+				m.GetLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-2").Return(privatedns.VirtualNetworkLink{
+					Name: to.StringPtr("my-vnet"),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+						"foo": to.StringPtr("bar"),
+					},
+				}, nil)
 				m.DeleteLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-2")
+				m.GetLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-3").Return(privatedns.VirtualNetworkLink{
+					Name: to.StringPtr("my-vnet"),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+						"foo": to.StringPtr("bar"),
+					},
+				}, nil)
 				m.DeleteLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-3")
+				m.GetZone(gomockinternal.AContext(), "my-rg", "my-dns-zone").Return(privatedns.PrivateZone{
+					Name: to.StringPtr("my-dns-zone"),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+						"foo": to.StringPtr("bar"),
+					},
+				}, nil)
 				m.DeleteZone(gomockinternal.AContext(), "my-rg", "my-dns-zone")
 			},
 		},
@@ -458,7 +615,6 @@ func TestDeletePrivateDNS(t *testing.T) {
 			name:          "link already deleted",
 			expectedError: "",
 			expect: func(s *mock_privatedns.MockScopeMockRecorder, m *mock_privatedns.MockclientMockRecorder) {
-				s.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
 				s.PrivateDNSSpec().Return(&azure.PrivateDNSSpec{
 					ZoneName: "my-dns-zone",
 					Links: []azure.PrivateDNSLinkSpec{
@@ -476,8 +632,16 @@ func TestDeletePrivateDNS(t *testing.T) {
 					},
 				})
 				s.ResourceGroup().AnyTimes().Return("my-rg")
-				m.DeleteLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link").
-					Return(autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 404}, "Not found"))
+				s.ClusterName().AnyTimes().Return("my-cluster")
+				m.GetLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link").
+					Return(privatedns.VirtualNetworkLink{}, autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 404}, "Not found"))
+				m.GetZone(gomockinternal.AContext(), "my-rg", "my-dns-zone").Return(privatedns.PrivateZone{
+					Name: to.StringPtr("my-dns-zone"),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+						"foo": to.StringPtr("bar"),
+					},
+				}, nil)
 				m.DeleteZone(gomockinternal.AContext(), "my-rg", "my-dns-zone")
 			},
 		},
@@ -485,7 +649,6 @@ func TestDeletePrivateDNS(t *testing.T) {
 			name:          "one link already deleted with multiple links",
 			expectedError: "",
 			expect: func(s *mock_privatedns.MockScopeMockRecorder, m *mock_privatedns.MockclientMockRecorder) {
-				s.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
 				s.PrivateDNSSpec().Return(&azure.PrivateDNSSpec{
 					ZoneName: "my-dns-zone",
 					Links: []azure.PrivateDNSLinkSpec{
@@ -513,18 +676,39 @@ func TestDeletePrivateDNS(t *testing.T) {
 					},
 				})
 				s.ResourceGroup().AnyTimes().Return("my-rg")
+				s.ClusterName().AnyTimes().Return("my-cluster")
+				m.GetLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-1").Return(privatedns.VirtualNetworkLink{
+					Name: to.StringPtr("my-vnet"),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+						"foo": to.StringPtr("bar"),
+					},
+				}, nil)
 				m.DeleteLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-1")
-				m.DeleteLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-2").
-					Return(autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 404}, "Not found"))
+				m.GetLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-2").
+					Return(privatedns.VirtualNetworkLink{}, autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 404}, "Not found"))
+				m.GetLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-3").Return(privatedns.VirtualNetworkLink{
+					Name: to.StringPtr("my-vnet"),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+						"foo": to.StringPtr("bar"),
+					},
+				}, nil)
 				m.DeleteLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-3")
+				m.GetZone(gomockinternal.AContext(), "my-rg", "my-dns-zone").Return(privatedns.PrivateZone{
+					Name: to.StringPtr("my-dns-zone"),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+						"foo": to.StringPtr("bar"),
+					},
+				}, nil)
 				m.DeleteZone(gomockinternal.AContext(), "my-rg", "my-dns-zone")
 			},
 		},
 		{
-			name:          "zone already deleted",
+			name:          "zone and all vnet links already deleted",
 			expectedError: "",
 			expect: func(s *mock_privatedns.MockScopeMockRecorder, m *mock_privatedns.MockclientMockRecorder) {
-				s.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
 				s.PrivateDNSSpec().Return(&azure.PrivateDNSSpec{
 					ZoneName: "my-dns-zone",
 					Links: []azure.PrivateDNSLinkSpec{
@@ -542,17 +726,17 @@ func TestDeletePrivateDNS(t *testing.T) {
 					},
 				})
 				s.ResourceGroup().AnyTimes().Return("my-rg")
-				m.DeleteLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link").
-					Return(autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 404}, "Not found"))
-				m.DeleteZone(gomockinternal.AContext(), "my-rg", "my-dns-zone").
-					Return(autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 404}, "Not found"))
+				s.ClusterName().AnyTimes().Return("my-cluster")
+				m.GetLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link").
+					Return(privatedns.VirtualNetworkLink{}, autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 404}, "Not found"))
+				m.GetZone(gomockinternal.AContext(), "my-rg", "my-dns-zone").
+					Return(privatedns.PrivateZone{}, autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 404}, "Not found"))
 			},
 		},
 		{
 			name:          "error while trying to delete the link",
 			expectedError: "failed to delete virtual network link my-vnet with zone my-dns-zone in resource group my-rg: #: Internal Server Error: StatusCode=500",
 			expect: func(s *mock_privatedns.MockScopeMockRecorder, m *mock_privatedns.MockclientMockRecorder) {
-				s.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
 				s.PrivateDNSSpec().Return(&azure.PrivateDNSSpec{
 					ZoneName: "my-dns-zone",
 					Links: []azure.PrivateDNSLinkSpec{
@@ -570,6 +754,14 @@ func TestDeletePrivateDNS(t *testing.T) {
 					},
 				})
 				s.ResourceGroup().AnyTimes().Return("my-rg")
+				s.ClusterName().AnyTimes().Return("my-cluster")
+				m.GetLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link").Return(privatedns.VirtualNetworkLink{
+					Name: to.StringPtr("my-vnet"),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+						"foo": to.StringPtr("bar"),
+					},
+				}, nil)
 				m.DeleteLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link").
 					Return(autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 500}, "Internal Server Error"))
 			},
@@ -578,7 +770,6 @@ func TestDeletePrivateDNS(t *testing.T) {
 			name:          "error while trying to delete one link with multiple links",
 			expectedError: "failed to delete virtual network link my-vnet-2 with zone my-dns-zone in resource group my-rg: #: Internal Server Error: StatusCode=500",
 			expect: func(s *mock_privatedns.MockScopeMockRecorder, m *mock_privatedns.MockclientMockRecorder) {
-				s.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
 				s.PrivateDNSSpec().Return(&azure.PrivateDNSSpec{
 					ZoneName: "my-dns-zone",
 					Links: []azure.PrivateDNSLinkSpec{
@@ -606,7 +797,22 @@ func TestDeletePrivateDNS(t *testing.T) {
 					},
 				})
 				s.ResourceGroup().AnyTimes().Return("my-rg")
+				s.ClusterName().AnyTimes().Return("my-cluster")
+				m.GetLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-1").Return(privatedns.VirtualNetworkLink{
+					Name: to.StringPtr("my-vnet"),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+						"foo": to.StringPtr("bar"),
+					},
+				}, nil)
 				m.DeleteLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-1")
+				m.GetLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-2").Return(privatedns.VirtualNetworkLink{
+					Name: to.StringPtr("my-vnet"),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+						"foo": to.StringPtr("bar"),
+					},
+				}, nil)
 				m.DeleteLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-2").
 					Return(autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 500}, "Internal Server Error"))
 			},
@@ -615,7 +821,6 @@ func TestDeletePrivateDNS(t *testing.T) {
 			name:          "error while trying to delete the zone with one link",
 			expectedError: "failed to delete private dns zone my-dns-zone in resource group my-rg: #: Internal Server Error: StatusCode=500",
 			expect: func(s *mock_privatedns.MockScopeMockRecorder, m *mock_privatedns.MockclientMockRecorder) {
-				s.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
 				s.PrivateDNSSpec().Return(&azure.PrivateDNSSpec{
 					ZoneName: "my-dns-zone",
 					Links: []azure.PrivateDNSLinkSpec{
@@ -633,7 +838,22 @@ func TestDeletePrivateDNS(t *testing.T) {
 					},
 				})
 				s.ResourceGroup().AnyTimes().Return("my-rg")
+				s.ClusterName().AnyTimes().Return("my-cluster")
+				m.GetLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link").Return(privatedns.VirtualNetworkLink{
+					Name: to.StringPtr("my-vnet"),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+						"foo": to.StringPtr("bar"),
+					},
+				}, nil)
 				m.DeleteLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link")
+				m.GetZone(gomockinternal.AContext(), "my-rg", "my-dns-zone").Return(privatedns.PrivateZone{
+					Name: to.StringPtr("my-dns-zone"),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+						"foo": to.StringPtr("bar"),
+					},
+				}, nil)
 				m.DeleteZone(gomockinternal.AContext(), "my-rg", "my-dns-zone").
 					Return(autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 500}, "Internal Server Error"))
 			},
@@ -642,7 +862,6 @@ func TestDeletePrivateDNS(t *testing.T) {
 			name:          "error while trying to delete the zone with multiple links",
 			expectedError: "failed to delete private dns zone my-dns-zone in resource group my-rg: #: Internal Server Error: StatusCode=500",
 			expect: func(s *mock_privatedns.MockScopeMockRecorder, m *mock_privatedns.MockclientMockRecorder) {
-				s.V(gomock.AssignableToTypeOf(2)).AnyTimes().Return(klogr.New())
 				s.PrivateDNSSpec().Return(&azure.PrivateDNSSpec{
 					ZoneName: "my-dns-zone",
 					Links: []azure.PrivateDNSLinkSpec{
@@ -670,9 +889,38 @@ func TestDeletePrivateDNS(t *testing.T) {
 					},
 				})
 				s.ResourceGroup().AnyTimes().Return("my-rg")
+				s.ClusterName().AnyTimes().Return("my-cluster")
+				m.GetLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-1").Return(privatedns.VirtualNetworkLink{
+					Name: to.StringPtr("my-vnet"),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+						"foo": to.StringPtr("bar"),
+					},
+				}, nil)
 				m.DeleteLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-1")
+				m.GetLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-2").Return(privatedns.VirtualNetworkLink{
+					Name: to.StringPtr("my-vnet"),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+						"foo": to.StringPtr("bar"),
+					},
+				}, nil)
 				m.DeleteLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-2")
+				m.GetLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-3").Return(privatedns.VirtualNetworkLink{
+					Name: to.StringPtr("my-vnet"),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+						"foo": to.StringPtr("bar"),
+					},
+				}, nil)
 				m.DeleteLink(gomockinternal.AContext(), "my-rg", "my-dns-zone", "my-link-3")
+				m.GetZone(gomockinternal.AContext(), "my-rg", "my-dns-zone").Return(privatedns.PrivateZone{
+					Name: to.StringPtr("my-dns-zone"),
+					Tags: map[string]*string{
+						"sigs.k8s.io_cluster-api-provider-azure_cluster_my-cluster": to.StringPtr("owned"),
+						"foo": to.StringPtr("bar"),
+					},
+				}, nil)
 				m.DeleteZone(gomockinternal.AContext(), "my-rg", "my-dns-zone").
 					Return(autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 500}, "Internal Server Error"))
 			},

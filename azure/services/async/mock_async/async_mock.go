@@ -25,7 +25,6 @@ import (
 	reflect "reflect"
 
 	azure "github.com/Azure/go-autorest/autorest/azure"
-	logr "github.com/go-logr/logr"
 	gomock "github.com/golang/mock/gomock"
 	v1beta1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	azure0 "sigs.k8s.io/cluster-api-provider-azure/azure"
@@ -67,37 +66,6 @@ func (mr *MockFutureScopeMockRecorder) DeleteLongRunningOperationState(arg0, arg
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteLongRunningOperationState", reflect.TypeOf((*MockFutureScope)(nil).DeleteLongRunningOperationState), arg0, arg1)
 }
 
-// Enabled mocks base method.
-func (m *MockFutureScope) Enabled() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Enabled")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// Enabled indicates an expected call of Enabled.
-func (mr *MockFutureScopeMockRecorder) Enabled() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Enabled", reflect.TypeOf((*MockFutureScope)(nil).Enabled))
-}
-
-// Error mocks base method.
-func (m *MockFutureScope) Error(err error, msg string, keysAndValues ...interface{}) {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{err, msg}
-	for _, a := range keysAndValues {
-		varargs = append(varargs, a)
-	}
-	m.ctrl.Call(m, "Error", varargs...)
-}
-
-// Error indicates an expected call of Error.
-func (mr *MockFutureScopeMockRecorder) Error(err, msg interface{}, keysAndValues ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{err, msg}, keysAndValues...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Error", reflect.TypeOf((*MockFutureScope)(nil).Error), varargs...)
-}
-
 // GetLongRunningOperationState mocks base method.
 func (m *MockFutureScope) GetLongRunningOperationState(arg0, arg1 string) *v1beta1.Future {
 	m.ctrl.T.Helper()
@@ -110,23 +78,6 @@ func (m *MockFutureScope) GetLongRunningOperationState(arg0, arg1 string) *v1bet
 func (mr *MockFutureScopeMockRecorder) GetLongRunningOperationState(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLongRunningOperationState", reflect.TypeOf((*MockFutureScope)(nil).GetLongRunningOperationState), arg0, arg1)
-}
-
-// Info mocks base method.
-func (m *MockFutureScope) Info(msg string, keysAndValues ...interface{}) {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{msg}
-	for _, a := range keysAndValues {
-		varargs = append(varargs, a)
-	}
-	m.ctrl.Call(m, "Info", varargs...)
-}
-
-// Info indicates an expected call of Info.
-func (mr *MockFutureScopeMockRecorder) Info(msg interface{}, keysAndValues ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{msg}, keysAndValues...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Info", reflect.TypeOf((*MockFutureScope)(nil).Info), varargs...)
 }
 
 // SetLongRunningOperationState mocks base method.
@@ -177,52 +128,6 @@ func (mr *MockFutureScopeMockRecorder) UpdatePutStatus(arg0, arg1, arg2 interfac
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePutStatus", reflect.TypeOf((*MockFutureScope)(nil).UpdatePutStatus), arg0, arg1, arg2)
 }
 
-// V mocks base method.
-func (m *MockFutureScope) V(level int) logr.Logger {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "V", level)
-	ret0, _ := ret[0].(logr.Logger)
-	return ret0
-}
-
-// V indicates an expected call of V.
-func (mr *MockFutureScopeMockRecorder) V(level interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "V", reflect.TypeOf((*MockFutureScope)(nil).V), level)
-}
-
-// WithName mocks base method.
-func (m *MockFutureScope) WithName(name string) logr.Logger {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WithName", name)
-	ret0, _ := ret[0].(logr.Logger)
-	return ret0
-}
-
-// WithName indicates an expected call of WithName.
-func (mr *MockFutureScopeMockRecorder) WithName(name interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WithName", reflect.TypeOf((*MockFutureScope)(nil).WithName), name)
-}
-
-// WithValues mocks base method.
-func (m *MockFutureScope) WithValues(keysAndValues ...interface{}) logr.Logger {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{}
-	for _, a := range keysAndValues {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "WithValues", varargs...)
-	ret0, _ := ret[0].(logr.Logger)
-	return ret0
-}
-
-// WithValues indicates an expected call of WithValues.
-func (mr *MockFutureScopeMockRecorder) WithValues(keysAndValues ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WithValues", reflect.TypeOf((*MockFutureScope)(nil).WithValues), keysAndValues...)
-}
-
 // MockFutureHandler is a mock of FutureHandler interface.
 type MockFutureHandler struct {
 	ctrl     *gomock.Controller
@@ -261,6 +166,21 @@ func (mr *MockFutureHandlerMockRecorder) IsDone(ctx, future interface{}) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsDone", reflect.TypeOf((*MockFutureHandler)(nil).IsDone), ctx, future)
 }
 
+// Result mocks base method.
+func (m *MockFutureHandler) Result(ctx context.Context, future azure.FutureAPI, futureType string) (interface{}, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Result", ctx, future, futureType)
+	ret0, _ := ret[0].(interface{})
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Result indicates an expected call of Result.
+func (mr *MockFutureHandlerMockRecorder) Result(ctx, future, futureType interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Result", reflect.TypeOf((*MockFutureHandler)(nil).Result), ctx, future, futureType)
+}
+
 // MockCreator is a mock of Creator interface.
 type MockCreator struct {
 	ctrl     *gomock.Controller
@@ -285,18 +205,34 @@ func (m *MockCreator) EXPECT() *MockCreatorMockRecorder {
 }
 
 // CreateOrUpdateAsync mocks base method.
-func (m *MockCreator) CreateOrUpdateAsync(ctx context.Context, spec azure0.ResourceSpecGetter) (azure.FutureAPI, error) {
+func (m *MockCreator) CreateOrUpdateAsync(ctx context.Context, spec azure0.ResourceSpecGetter, parameters interface{}) (interface{}, azure.FutureAPI, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateOrUpdateAsync", ctx, spec)
-	ret0, _ := ret[0].(azure.FutureAPI)
+	ret := m.ctrl.Call(m, "CreateOrUpdateAsync", ctx, spec, parameters)
+	ret0, _ := ret[0].(interface{})
+	ret1, _ := ret[1].(azure.FutureAPI)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// CreateOrUpdateAsync indicates an expected call of CreateOrUpdateAsync.
+func (mr *MockCreatorMockRecorder) CreateOrUpdateAsync(ctx, spec, parameters interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrUpdateAsync", reflect.TypeOf((*MockCreator)(nil).CreateOrUpdateAsync), ctx, spec, parameters)
+}
+
+// Get mocks base method.
+func (m *MockCreator) Get(ctx context.Context, spec azure0.ResourceSpecGetter) (interface{}, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Get", ctx, spec)
+	ret0, _ := ret[0].(interface{})
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// CreateOrUpdateAsync indicates an expected call of CreateOrUpdateAsync.
-func (mr *MockCreatorMockRecorder) CreateOrUpdateAsync(ctx, spec interface{}) *gomock.Call {
+// Get indicates an expected call of Get.
+func (mr *MockCreatorMockRecorder) Get(ctx, spec interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrUpdateAsync", reflect.TypeOf((*MockCreator)(nil).CreateOrUpdateAsync), ctx, spec)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockCreator)(nil).Get), ctx, spec)
 }
 
 // IsDone mocks base method.
@@ -312,6 +248,21 @@ func (m *MockCreator) IsDone(ctx context.Context, future azure.FutureAPI) (bool,
 func (mr *MockCreatorMockRecorder) IsDone(ctx, future interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsDone", reflect.TypeOf((*MockCreator)(nil).IsDone), ctx, future)
+}
+
+// Result mocks base method.
+func (m *MockCreator) Result(ctx context.Context, future azure.FutureAPI, futureType string) (interface{}, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Result", ctx, future, futureType)
+	ret0, _ := ret[0].(interface{})
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Result indicates an expected call of Result.
+func (mr *MockCreatorMockRecorder) Result(ctx, future, futureType interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Result", reflect.TypeOf((*MockCreator)(nil).Result), ctx, future, futureType)
 }
 
 // MockDeleter is a mock of Deleter interface.
@@ -365,4 +316,71 @@ func (m *MockDeleter) IsDone(ctx context.Context, future azure.FutureAPI) (bool,
 func (mr *MockDeleterMockRecorder) IsDone(ctx, future interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsDone", reflect.TypeOf((*MockDeleter)(nil).IsDone), ctx, future)
+}
+
+// Result mocks base method.
+func (m *MockDeleter) Result(ctx context.Context, future azure.FutureAPI, futureType string) (interface{}, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Result", ctx, future, futureType)
+	ret0, _ := ret[0].(interface{})
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Result indicates an expected call of Result.
+func (mr *MockDeleterMockRecorder) Result(ctx, future, futureType interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Result", reflect.TypeOf((*MockDeleter)(nil).Result), ctx, future, futureType)
+}
+
+// MockReconciler is a mock of Reconciler interface.
+type MockReconciler struct {
+	ctrl     *gomock.Controller
+	recorder *MockReconcilerMockRecorder
+}
+
+// MockReconcilerMockRecorder is the mock recorder for MockReconciler.
+type MockReconcilerMockRecorder struct {
+	mock *MockReconciler
+}
+
+// NewMockReconciler creates a new mock instance.
+func NewMockReconciler(ctrl *gomock.Controller) *MockReconciler {
+	mock := &MockReconciler{ctrl: ctrl}
+	mock.recorder = &MockReconcilerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockReconciler) EXPECT() *MockReconcilerMockRecorder {
+	return m.recorder
+}
+
+// CreateResource mocks base method.
+func (m *MockReconciler) CreateResource(ctx context.Context, spec azure0.ResourceSpecGetter, serviceName string) (interface{}, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateResource", ctx, spec, serviceName)
+	ret0, _ := ret[0].(interface{})
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateResource indicates an expected call of CreateResource.
+func (mr *MockReconcilerMockRecorder) CreateResource(ctx, spec, serviceName interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateResource", reflect.TypeOf((*MockReconciler)(nil).CreateResource), ctx, spec, serviceName)
+}
+
+// DeleteResource mocks base method.
+func (m *MockReconciler) DeleteResource(ctx context.Context, spec azure0.ResourceSpecGetter, serviceName string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteResource", ctx, spec, serviceName)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteResource indicates an expected call of DeleteResource.
+func (mr *MockReconcilerMockRecorder) DeleteResource(ctx, spec, serviceName interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteResource", reflect.TypeOf((*MockReconciler)(nil).DeleteResource), ctx, spec, serviceName)
 }

@@ -23,12 +23,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2021-04-01/compute"
 	"github.com/Azure/go-autorest/autorest/to"
-	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/klog/v2/klogr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/controllers/noderefutil"
 	capierrors "sigs.k8s.io/cluster-api/errors"
@@ -39,16 +38,22 @@ import (
 
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
+	"sigs.k8s.io/cluster-api-provider-azure/azure/services/availabilitysets"
+	"sigs.k8s.io/cluster-api-provider-azure/azure/services/disks"
+	"sigs.k8s.io/cluster-api-provider-azure/azure/services/inboundnatrules"
+	"sigs.k8s.io/cluster-api-provider-azure/azure/services/resourceskus"
+	"sigs.k8s.io/cluster-api-provider-azure/azure/services/virtualmachines"
 	"sigs.k8s.io/cluster-api-provider-azure/util/futures"
+	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
 )
 
 // MachineScopeParams defines the input parameters used to create a new MachineScope.
 type MachineScopeParams struct {
 	Client       client.Client
-	Logger       logr.Logger
 	ClusterScope azure.ClusterScoper
 	Machine      *clusterv1.Machine
 	AzureMachine *infrav1.AzureMachine
+	Cache        *MachineCache
 }
 
 // NewMachineScope creates a new MachineScope from the supplied parameters.
@@ -63,51 +68,107 @@ func NewMachineScope(params MachineScopeParams) (*MachineScope, error) {
 	if params.AzureMachine == nil {
 		return nil, errors.New("azure machine is required when creating a MachineScope")
 	}
-	if params.Logger == nil {
-		params.Logger = klogr.New()
-	}
 
 	helper, err := patch.NewHelper(params.AzureMachine, params.Client)
 	if err != nil {
-		return nil, errors.Errorf("failed to init patch helper: %v ", err)
+		return nil, errors.Wrap(err, "failed to init patch helper")
 	}
+
 	return &MachineScope{
 		client:        params.Client,
 		Machine:       params.Machine,
 		AzureMachine:  params.AzureMachine,
-		Logger:        params.Logger,
 		patchHelper:   helper,
 		ClusterScoper: params.ClusterScope,
+		cache:         params.Cache,
 	}, nil
 }
 
 // MachineScope defines a scope defined around a machine and its cluster.
 type MachineScope struct {
-	logr.Logger
 	client      client.Client
 	patchHelper *patch.Helper
 
 	azure.ClusterScoper
 	Machine      *clusterv1.Machine
 	AzureMachine *infrav1.AzureMachine
+	cache        *MachineCache
+}
+
+// MachineCache stores common machine information so we don't have to hit the API multiple times within the same reconcile loop.
+type MachineCache struct {
+	BootstrapData      string
+	VMImage            *infrav1.Image
+	VMSKU              resourceskus.SKU
+	availabilitySetSKU resourceskus.SKU
+}
+
+// InitMachineCache sets cached information about the machine to be used in the scope.
+func (m *MachineScope) InitMachineCache(ctx context.Context) error {
+	ctx, _, done := tele.StartSpanWithLogger(ctx, "azure.MachineScope.InitMachineCache")
+	defer done()
+
+	if m.cache == nil {
+		var err error
+		m.cache = &MachineCache{}
+
+		m.cache.BootstrapData, err = m.GetBootstrapData(ctx)
+		if err != nil {
+			return err
+		}
+
+		m.cache.VMImage, err = m.GetVMImage(ctx)
+		if err != nil {
+			return err
+		}
+
+		skuCache, err := resourceskus.GetCache(m, m.Location())
+		if err != nil {
+			return err
+		}
+
+		m.cache.VMSKU, err = skuCache.Get(ctx, m.AzureMachine.Spec.VMSize, resourceskus.VirtualMachines)
+		if err != nil {
+			return errors.Wrapf(err, "failed to get VM SKU %s in compute api", m.AzureMachine.Spec.VMSize)
+		}
+
+		m.cache.availabilitySetSKU, err = skuCache.Get(ctx, string(compute.AvailabilitySetSkuTypesAligned), resourceskus.AvailabilitySets)
+		if err != nil {
+			return errors.Wrapf(err, "failed to get availability set SKU %s in compute api", string(compute.AvailabilitySetSkuTypesAligned))
+		}
+	}
+
+	return nil
 }
 
 // VMSpec returns the VM spec.
-func (m *MachineScope) VMSpec() azure.VMSpec {
-	return azure.VMSpec{
+func (m *MachineScope) VMSpec() azure.ResourceSpecGetter {
+	spec := &virtualmachines.VMSpec{
 		Name:                   m.Name(),
+		Location:               m.Location(),
+		ResourceGroup:          m.ResourceGroup(),
+		ClusterName:            m.ClusterName(),
 		Role:                   m.Role(),
-		NICNames:               m.NICNames(),
+		NICIDs:                 m.NICIDs(),
 		SSHKeyData:             m.AzureMachine.Spec.SSHPublicKey,
 		Size:                   m.AzureMachine.Spec.VMSize,
 		OSDisk:                 m.AzureMachine.Spec.OSDisk,
 		DataDisks:              m.AzureMachine.Spec.DataDisks,
+		AvailabilitySetID:      m.AvailabilitySetID(),
 		Zone:                   m.AvailabilityZone(),
 		Identity:               m.AzureMachine.Spec.Identity,
 		UserAssignedIdentities: m.AzureMachine.Spec.UserAssignedIdentities,
 		SpotVMOptions:          m.AzureMachine.Spec.SpotVMOptions,
 		SecurityProfile:        m.AzureMachine.Spec.SecurityProfile,
+		AdditionalTags:         m.AdditionalTags(),
+		ProviderID:             m.ProviderID(),
 	}
+	if m.cache != nil {
+		spec.SKU = m.cache.VMSKU
+		spec.Image = m.cache.VMImage
+		spec.BootstrapData = m.cache.BootstrapData
+	}
+	return spec
 }
 
 // TagsSpecs returns the tags for the AzureMachine.
@@ -133,16 +194,25 @@ func (m *MachineScope) PublicIPSpecs() []azure.PublicIPSpec {
 }
 
 // InboundNatSpecs returns the inbound NAT specs.
-func (m *MachineScope) InboundNatSpecs() []azure.InboundNatSpec {
+func (m *MachineScope) InboundNatSpecs(portsInUse map[int32]struct{}) []azure.ResourceSpecGetter {
+	// The existing inbound NAT rules are needed in order to find an available SSH port for each new inbound NAT rule.
 	if m.Role() == infrav1.ControlPlane {
-		return []azure.InboundNatSpec{
-			{
-				Name:             m.Name(),
-				LoadBalancerName: m.APIServerLBName(),
-			},
+		spec := &inboundnatrules.InboundNatSpec{
+			Name:                      m.Name(),
+			ResourceGroup:             m.ResourceGroup(),
+			LoadBalancerName:          m.APIServerLBName(),
+			FrontendIPConfigurationID: nil,
+			PortsInUse:                portsInUse,
 		}
+		if frontEndIPs := m.APIServerLB().FrontendIPs; len(frontEndIPs) > 0 {
+			ipConfig := frontEndIPs[0].Name
+			id := azure.FrontendIPConfigID(m.SubscriptionID(), m.ResourceGroup(), m.APIServerLBName(), ipConfig)
+			spec.FrontendIPConfigurationID = to.StringPtr(id)
+		}
+
+		return []azure.ResourceSpecGetter{spec}
 	}
-	return []azure.InboundNatSpec{}
+	return []azure.ResourceSpecGetter{}
 }
 
 // NICSpecs returns the network interface specs.
@@ -170,7 +240,7 @@ func (m *MachineScope) NICSpecs() []azure.NICSpec {
 		}
 	}
 
-	// If Nat Gateway is not enabled and node has no public IP, then the NIC needs to reference the LB to get outbound traffic.
+	// If NAT gateway is not enabled and node has no public IP, then the NIC needs to reference the LB to get outbound traffic.
 	if m.Role() == infrav1.Node && !m.Subnet().IsNatGatewayEnabled() && !m.AzureMachine.Spec.AllocatePublicIP {
 		spec.PublicLBName = m.OutboundLBName(m.Role())
 		spec.PublicLBAddressPoolName = m.OutboundPoolName(m.OutboundLBName(m.Role()))
@@ -183,27 +253,31 @@ func (m *MachineScope) NICSpecs() []azure.NICSpec {
 	return []azure.NICSpec{spec}
 }
 
-// NICNames returns the NIC names.
-func (m *MachineScope) NICNames() []string {
+// NICIDs returns the NIC resource IDs.
+func (m *MachineScope) NICIDs() []string {
 	nicspecs := m.NICSpecs()
-	nicNames := make([]string, len(nicspecs))
+	nicIDs := make([]string, len(nicspecs))
 	for i, nic := range nicspecs {
-		nicNames[i] = nic.Name
+		nicIDs[i] = azure.NetworkInterfaceID(m.SubscriptionID(), m.ResourceGroup(), nic.Name)
 	}
-	return nicNames
+	return nicIDs
 }
 
 // DiskSpecs returns the disk specs.
-func (m *MachineScope) DiskSpecs() []azure.DiskSpec {
-	disks := make([]azure.DiskSpec, 1+len(m.AzureMachine.Spec.DataDisks))
-	disks[0] = azure.DiskSpec{
-		Name: azure.GenerateOSDiskName(m.Name()),
+func (m *MachineScope) DiskSpecs() []azure.ResourceSpecGetter {
+	diskSpecs := make([]azure.ResourceSpecGetter, 1+len(m.AzureMachine.Spec.DataDisks))
+	diskSpecs[0] = &disks.DiskSpec{
+		Name:          azure.GenerateOSDiskName(m.Name()),
+		ResourceGroup: m.ResourceGroup(),
 	}
 
 	for i, dd := range m.AzureMachine.Spec.DataDisks {
-		disks[i+1] = azure.DiskSpec{Name: azure.GenerateDataDiskName(m.Name(), dd.NameSuffix)}
+		diskSpecs[i+1] = &disks.DiskSpec{
+			Name:          azure.GenerateDataDiskName(m.Name(), dd.NameSuffix),
+			ResourceGroup: m.ResourceGroup(),
+		}
 	}
-	return disks
+	return diskSpecs
 }
 
 // RoleAssignmentSpecs returns the role assignment specs.
@@ -309,6 +383,29 @@ func (m *MachineScope) ProviderID() string {
 }
 
 // AvailabilitySet returns the availability set for this machine if available.
+func (m *MachineScope) AvailabilitySetSpec() azure.ResourceSpecGetter {
+	availabilitySetName, ok := m.AvailabilitySet()
+	if !ok {
+		return nil
+	}
+
+	spec := &availabilitysets.AvailabilitySetSpec{
+		Name:           availabilitySetName,
+		ResourceGroup:  m.ResourceGroup(),
+		ClusterName:    m.ClusterName(),
+		Location:       m.Location(),
+		SKU:            nil,
+		AdditionalTags: m.AdditionalTags(),
+	}
+
+	if m.cache != nil {
+		spec.SKU = &m.cache.availabilitySetSKU
+	}
+
+	return spec
+}
+
+// AvailabilitySet returns the availability set for this machine if available.
 func (m *MachineScope) AvailabilitySet() (string, bool) {
 	if !m.AvailabilitySetEnabled() {
 		return "", false
@@ -329,6 +426,15 @@ func (m *MachineScope) AvailabilitySet() (string, bool) {
 	}
 
 	return "", false
+}
+
+// AvailabilitySetID returns the availability set for this machine, or "" if there is no availability set.
+func (m *MachineScope) AvailabilitySetID() string {
+	var asID string
+	if asName, ok := m.AvailabilitySet(); ok {
+		asID = azure.AvailabilitySetID(m.SubscriptionID(), m.ResourceGroup(), asName)
+	}
+	return asID
 }
 
 // SetProviderID sets the AzureMachine providerID in spec.
@@ -370,48 +476,25 @@ func (m *MachineScope) SetFailureReason(v capierrors.MachineStatusError) {
 }
 
 // SetBootstrapConditions sets the AzureMachine BootstrapSucceeded condition based on the extension provisioning states.
-func (m *MachineScope) SetBootstrapConditions(provisioningState string, extensionName string) error {
+func (m *MachineScope) SetBootstrapConditions(ctx context.Context, provisioningState string, extensionName string) error {
+	_, log, done := tele.StartSpanWithLogger(ctx, "scope.MachineScope.SetBootstrapConditions")
+	defer done()
+
 	switch infrav1.ProvisioningState(provisioningState) {
 	case infrav1.Succeeded:
-		m.V(4).Info("extension provisioning state is succeeded", "vm extension", extensionName, "virtual machine", m.Name())
+		log.V(4).Info("extension provisioning state is succeeded", "vm extension", extensionName, "virtual machine", m.Name())
 		conditions.MarkTrue(m.AzureMachine, infrav1.BootstrapSucceededCondition)
 		return nil
 	case infrav1.Creating:
-		m.V(4).Info("extension provisioning state is creating", "vm extension", extensionName, "virtual machine", m.Name())
+		log.V(4).Info("extension provisioning state is creating", "vm extension", extensionName, "virtual machine", m.Name())
 		conditions.MarkFalse(m.AzureMachine, infrav1.BootstrapSucceededCondition, infrav1.BootstrapInProgressReason, clusterv1.ConditionSeverityInfo, "")
 		return azure.WithTransientError(errors.New("extension is still in provisioning state. This likely means that bootstrapping has not yet completed on the VM"), 30*time.Second)
 	case infrav1.Failed:
-		m.V(4).Info("extension provisioning state is failed", "vm extension", extensionName, "virtual machine", m.Name())
+		log.V(4).Info("extension provisioning state is failed", "vm extension", extensionName, "virtual machine", m.Name())
 		conditions.MarkFalse(m.AzureMachine, infrav1.BootstrapSucceededCondition, infrav1.BootstrapFailedReason, clusterv1.ConditionSeverityError, "")
 		return azure.WithTerminalError(errors.New("extension state failed. This likely means the Kubernetes node bootstrapping process failed or timed out. Check VM boot diagnostics logs to learn more"))
 	default:
 		return nil
-	}
-}
-
-// UpdateStatus updates the AzureMachine status.
-func (m *MachineScope) UpdateStatus() {
-	switch m.VMState() {
-	case infrav1.Succeeded:
-		m.V(2).Info("VM is running", "id", m.GetVMID())
-		conditions.MarkTrue(m.AzureMachine, infrav1.VMRunningCondition)
-	case infrav1.Creating:
-		m.V(2).Info("VM is creating", "id", m.GetVMID())
-		conditions.MarkFalse(m.AzureMachine, infrav1.VMRunningCondition, infrav1.VMCreatingReason, clusterv1.ConditionSeverityInfo, "")
-	case infrav1.Updating:
-		m.V(2).Info("VM is updating", "id", m.GetVMID())
-		conditions.MarkFalse(m.AzureMachine, infrav1.VMRunningCondition, infrav1.VMUpdatingReason, clusterv1.ConditionSeverityInfo, "")
-	case infrav1.Deleting:
-		m.Info("Unexpected VM deletion", "id", m.GetVMID())
-		conditions.MarkFalse(m.AzureMachine, infrav1.VMRunningCondition, infrav1.VMDeletingReason, clusterv1.ConditionSeverityWarning, "")
-	case infrav1.Failed:
-		m.Error(errors.New("Failed to create or update VM"), "VM is in failed state", "id", m.GetVMID())
-		m.SetFailureReason(capierrors.UpdateMachineError)
-		m.SetFailureMessage(errors.Errorf("Azure VM state is %s", m.VMState()))
-		conditions.MarkFalse(m.AzureMachine, infrav1.VMRunningCondition, infrav1.VMProvisionFailedReason, clusterv1.ConditionSeverityError, "")
-	default:
-		m.V(2).Info("VM state is undefined", "id", m.GetVMID())
-		conditions.MarkUnknown(m.AzureMachine, infrav1.VMRunningCondition, "", "")
 	}
 }
 
@@ -460,9 +543,7 @@ func (m *MachineScope) PatchObject(ctx context.Context) error {
 	conditions.SetSummary(m.AzureMachine,
 		conditions.WithConditions(
 			infrav1.VMRunningCondition,
-		),
-		conditions.WithStepCounterIfOnly(
-			infrav1.VMRunningCondition,
+			infrav1.AvailabilitySetReadyCondition,
 		),
 	)
 
@@ -472,6 +553,7 @@ func (m *MachineScope) PatchObject(ctx context.Context) error {
 		patch.WithOwnedConditions{Conditions: []clusterv1.ConditionType{
 			clusterv1.ReadyCondition,
 			infrav1.VMRunningCondition,
+			infrav1.AvailabilitySetReadyCondition,
 		}})
 }
 
@@ -496,6 +578,9 @@ func (m *MachineScope) AdditionalTags() infrav1.Tags {
 
 // GetBootstrapData returns the bootstrap data from the secret in the Machine's bootstrap.dataSecretName.
 func (m *MachineScope) GetBootstrapData(ctx context.Context) (string, error) {
+	ctx, _, done := tele.StartSpanWithLogger(ctx, "scope.MachineScope.GetBootstrapData")
+	defer done()
+
 	if m.Machine.Spec.Bootstrap.DataSecretName == nil {
 		return "", errors.New("error retrieving bootstrap data: linked Machine's bootstrap.dataSecretName is nil")
 	}
@@ -513,7 +598,10 @@ func (m *MachineScope) GetBootstrapData(ctx context.Context) (string, error) {
 }
 
 // GetVMImage returns the image from the machine configuration, or a default one.
-func (m *MachineScope) GetVMImage() (*infrav1.Image, error) {
+func (m *MachineScope) GetVMImage(ctx context.Context) (*infrav1.Image, error) {
+	_, log, done := tele.StartSpanWithLogger(ctx, "scope.MachineScope.GetVMImage")
+	defer done()
+
 	// Use custom Marketplace image, Image ID or a Shared Image Gallery image if provided
 	if m.AzureMachine.Spec.Image != nil {
 		return m.AzureMachine.Spec.Image, nil
@@ -521,11 +609,11 @@ func (m *MachineScope) GetVMImage() (*infrav1.Image, error) {
 
 	if m.AzureMachine.Spec.OSDisk.OSType == azure.WindowsOS {
 		runtime := m.AzureMachine.Annotations["runtime"]
-		m.Info("No image specified for machine, using default Windows Image", "machine", m.AzureMachine.GetName(), "runtime", runtime)
+		log.Info("No image specified for machine, using default Windows Image", "machine", m.AzureMachine.GetName(), "runtime", runtime)
 		return azure.GetDefaultWindowsImage(to.String(m.Machine.Spec.Version), runtime)
 	}
 
-	m.Info("No image specified for machine, using default Linux Image", "machine", m.AzureMachine.GetName())
+	log.Info("No image specified for machine, using default Linux Image", "machine", m.AzureMachine.GetName())
 	return azure.GetDefaultUbuntuImage(to.String(m.Machine.Spec.Version))
 }
 

@@ -31,7 +31,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/klog/v2/klogr"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
 	infrav1exp "sigs.k8s.io/cluster-api-provider-azure/exp/api/v1beta1"
@@ -109,7 +108,7 @@ func TestMachinePoolScope_SetBootstrapConditions(t *testing.T) {
 				return string(infrav1.Succeeded), "foo"
 			},
 			Verify: func(g *WithT, amp *infrav1exp.AzureMachinePool, err error) {
-				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(conditions.IsTrue(amp, infrav1.BootstrapSucceededCondition))
 			},
 		},
@@ -119,7 +118,7 @@ func TestMachinePoolScope_SetBootstrapConditions(t *testing.T) {
 				return string(infrav1.Creating), "bazz"
 			},
 			Verify: func(g *WithT, amp *infrav1exp.AzureMachinePool, err error) {
-				g.Expect(err).To(MatchError("transient reconcile error occurred: extension is still in provisioning state. This likely means that bootstrapping has not yet completed on the VM. Object will be requeued after 30s"))
+				g.Expect(err).To(MatchError("extension is still in provisioning state. This likely means that bootstrapping has not yet completed on the VM. Object will be requeued after 30s"))
 				g.Expect(conditions.IsFalse(amp, infrav1.BootstrapSucceededCondition))
 				g.Expect(conditions.GetReason(amp, infrav1.BootstrapSucceededCondition)).To(Equal(infrav1.BootstrapInProgressReason))
 				severity := conditions.GetSeverity(amp, infrav1.BootstrapSucceededCondition)
@@ -154,9 +153,8 @@ func TestMachinePoolScope_SetBootstrapConditions(t *testing.T) {
 			state, name := c.Setup()
 			s := &MachinePoolScope{
 				AzureMachinePool: &infrav1exp.AzureMachinePool{},
-				Logger:           klogr.New(),
 			}
-			err := s.SetBootstrapConditions(state, name)
+			err := s.SetBootstrapConditions(context.TODO(), state, name)
 			c.Verify(g, s.AzureMachinePool, err)
 		})
 	}
@@ -172,7 +170,7 @@ func TestMachinePoolScope_MaxSurge(t *testing.T) {
 			Name: "default surge should be 1 if no deployment strategy is set",
 			Verify: func(g *WithT, surge int, err error) {
 				g.Expect(surge).To(Equal(1))
-				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(err).NotTo(HaveOccurred())
 			},
 		},
 		{
@@ -182,7 +180,7 @@ func TestMachinePoolScope_MaxSurge(t *testing.T) {
 			},
 			Verify: func(g *WithT, surge int, err error) {
 				g.Expect(surge).To(Equal(1))
-				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(err).NotTo(HaveOccurred())
 			},
 		},
 		{
@@ -199,7 +197,7 @@ func TestMachinePoolScope_MaxSurge(t *testing.T) {
 			},
 			Verify: func(g *WithT, surge int, err error) {
 				g.Expect(surge).To(Equal(2))
-				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(err).NotTo(HaveOccurred())
 			},
 		},
 		{
@@ -216,7 +214,7 @@ func TestMachinePoolScope_MaxSurge(t *testing.T) {
 			},
 			Verify: func(g *WithT, surge int, err error) {
 				g.Expect(surge).To(Equal(2))
-				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(err).NotTo(HaveOccurred())
 			},
 		},
 	}
@@ -255,7 +253,6 @@ func TestMachinePoolScope_MaxSurge(t *testing.T) {
 			s := &MachinePoolScope{
 				MachinePool:      mp,
 				AzureMachinePool: amp,
-				Logger:           klogr.New(),
 			}
 			surge, err := s.MaxSurge()
 			c.Verify(g, surge, err)
@@ -282,7 +279,6 @@ func TestMachinePoolScope_SaveVMImageToStatus(t *testing.T) {
 		}
 		s = &MachinePoolScope{
 			AzureMachinePool: amp,
-			Logger:           klogr.New(),
 		}
 		image = &infrav1.Image{
 			Marketplace: &infrav1.AzureMarketplaceImage{
@@ -312,7 +308,7 @@ func TestMachinePoolScope_GetVMImage(t *testing.T) {
 				mp.Spec.Template.Spec.Version = to.StringPtr("v1.19.11")
 			},
 			Verify: func(g *WithT, amp *infrav1exp.AzureMachinePool, vmImage *infrav1.Image, err error) {
-				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(err).NotTo(HaveOccurred())
 				image := &infrav1.Image{
 					Marketplace: &infrav1.AzureMarketplaceImage{
 						Publisher:       "cncf-upstream",
@@ -341,7 +337,7 @@ func TestMachinePoolScope_GetVMImage(t *testing.T) {
 				}
 			},
 			Verify: func(g *WithT, amp *infrav1exp.AzureMachinePool, vmImage *infrav1.Image, err error) {
-				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(err).NotTo(HaveOccurred())
 				image := &infrav1.Image{
 					Marketplace: &infrav1.AzureMarketplaceImage{
 						Publisher:       "cncf-upstream",
@@ -391,9 +387,8 @@ func TestMachinePoolScope_GetVMImage(t *testing.T) {
 			s := &MachinePoolScope{
 				MachinePool:      mp,
 				AzureMachinePool: amp,
-				Logger:           klogr.New(),
 			}
-			image, err := s.GetVMImage()
+			image, err := s.GetVMImage(context.TODO())
 			c.Verify(g, amp, image, err)
 		})
 	}
@@ -513,7 +508,6 @@ func TestMachinePoolScope_NeedsRequeue(t *testing.T) {
 				vmssState:        vmssState,
 				MachinePool:      mp,
 				AzureMachinePool: amp,
-				Logger:           klogr.New(),
 			}
 			c.Verify(g, s.NeedsRequeue())
 		})
@@ -539,7 +533,7 @@ func TestMachinePoolScope_updateReplicasAndProviderIDs(t *testing.T) {
 				}
 			},
 			Verify: func(g *WithT, amp *infrav1exp.AzureMachinePool, err error) {
-				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(amp.Status.Replicas).To(BeEquivalentTo(3))
 				g.Expect(amp.Spec.ProviderIDList).To(ConsistOf("/foo/ampm0", "/foo/ampm1", "/foo/ampm2"))
 			},
@@ -555,7 +549,7 @@ func TestMachinePoolScope_updateReplicasAndProviderIDs(t *testing.T) {
 				}
 			},
 			Verify: func(g *WithT, amp *infrav1exp.AzureMachinePool, err error) {
-				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(amp.Status.Replicas).To(BeEquivalentTo(2))
 			},
 		},
@@ -570,7 +564,7 @@ func TestMachinePoolScope_updateReplicasAndProviderIDs(t *testing.T) {
 				}
 			},
 			Verify: func(g *WithT, amp *infrav1exp.AzureMachinePool, err error) {
-				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(amp.Status.Replicas).To(BeEquivalentTo(2))
 			},
 		},
@@ -619,7 +613,6 @@ func TestMachinePoolScope_updateReplicasAndProviderIDs(t *testing.T) {
 					Cluster: cluster,
 				},
 				AzureMachinePool: amp,
-				Logger:           klogr.New(),
 			}
 			err := s.updateReplicasAndProviderIDs(context.TODO())
 			c.Verify(g, s.AzureMachinePool, err)

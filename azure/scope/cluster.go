@@ -26,9 +26,7 @@ import (
 
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/to"
-	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
-	"k8s.io/klog/v2/klogr"
 	"k8s.io/utils/net"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
@@ -38,14 +36,17 @@ import (
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/services/groups"
+	"sigs.k8s.io/cluster-api-provider-azure/azure/services/natgateways"
+	"sigs.k8s.io/cluster-api-provider-azure/azure/services/routetables"
+	"sigs.k8s.io/cluster-api-provider-azure/azure/services/vnetpeerings"
 	"sigs.k8s.io/cluster-api-provider-azure/util/futures"
+	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
 )
 
 // ClusterScopeParams defines the input parameters used to create a new Scope.
 type ClusterScopeParams struct {
 	AzureClients
 	Client       client.Client
-	Logger       logr.Logger
 	Cluster      *clusterv1.Cluster
 	AzureCluster *infrav1.AzureCluster
 }
@@ -53,15 +54,14 @@ type ClusterScopeParams struct {
 // NewClusterScope creates a new Scope from the supplied parameters.
 // This is meant to be called for each reconcile iteration.
 func NewClusterScope(ctx context.Context, params ClusterScopeParams) (*ClusterScope, error) {
+	ctx, _, done := tele.StartSpanWithLogger(ctx, "azure.clusterScope.NewClusterScope")
+	defer done()
+
 	if params.Cluster == nil {
 		return nil, errors.New("failed to generate new scope from nil Cluster")
 	}
 	if params.AzureCluster == nil {
 		return nil, errors.New("failed to generate new scope from nil AzureCluster")
-	}
-
-	if params.Logger == nil {
-		params.Logger = klogr.New()
 	}
 
 	if params.AzureCluster.Spec.IdentityRef == nil {
@@ -86,7 +86,6 @@ func NewClusterScope(ctx context.Context, params ClusterScopeParams) (*ClusterSc
 	}
 
 	return &ClusterScope{
-		Logger:       params.Logger,
 		Client:       params.Client,
 		AzureClients: params.AzureClients,
 		Cluster:      params.Cluster,
@@ -97,7 +96,6 @@ func NewClusterScope(ctx context.Context, params ClusterScopeParams) (*ClusterSc
 
 // ClusterScope defines the basic context for an actuator to operate upon.
 type ClusterScope struct {
-	logr.Logger
 	Client      client.Client
 	patchHelper *patch.Helper
 
@@ -142,7 +140,7 @@ func (s *ClusterScope) PublicIPSpecs() []azure.PublicIPSpec {
 		publicIPSpecs = append(publicIPSpecs, nodeOutboundIPSpecs...)
 	}
 
-	// Public IP specs for node nat gateways
+	// Public IP specs for node NAT gateways
 	var nodeNatGatewayIPSpecs []azure.PublicIPSpec
 	for _, subnet := range s.NodeSubnets() {
 		if subnet.IsNatGatewayEnabled() {
@@ -212,32 +210,42 @@ func (s *ClusterScope) LBSpecs() []azure.LBSpec {
 	return specs
 }
 
-// RouteTableSpecs returns the node route table.
-func (s *ClusterScope) RouteTableSpecs() []azure.RouteTableSpec {
-	routetables := []azure.RouteTableSpec{}
+// RouteTableSpecs returns the subnet route tables.
+func (s *ClusterScope) RouteTableSpecs() []azure.ResourceSpecGetter {
+	var specs []azure.ResourceSpecGetter
 	for _, subnet := range s.AzureCluster.Spec.NetworkSpec.Subnets {
 		if subnet.RouteTable.Name != "" {
-			routetables = append(routetables, azure.RouteTableSpec{Name: subnet.RouteTable.Name, Subnet: subnet})
+			specs = append(specs, &routetables.RouteTableSpec{
+				Name:          subnet.RouteTable.Name,
+				Location:      s.Location(),
+				ResourceGroup: s.ResourceGroup(),
+			})
 		}
 	}
 
-	return routetables
+	return specs
 }
 
-// NatGatewaySpecs returns the node nat gateway.
-func (s *ClusterScope) NatGatewaySpecs() []azure.NatGatewaySpec {
-	natGateways := []azure.NatGatewaySpec{}
+// NatGatewaySpecs returns the node NAT gateway.
+func (s *ClusterScope) NatGatewaySpecs() []azure.ResourceSpecGetter {
+	natGatewaySet := make(map[string]struct{})
+	var natGateways []azure.ResourceSpecGetter
 
-	// We ignore the control plane nat gateway, as we will always use a LB to enable egress on the control plane.
+	// We ignore the control plane NAT gateway, as we will always use a LB to enable egress on the control plane.
 	for _, subnet := range s.NodeSubnets() {
 		if subnet.IsNatGatewayEnabled() {
-			natGateways = append(natGateways, azure.NatGatewaySpec{
-				Name: subnet.NatGateway.Name,
-				NatGatewayIP: infrav1.PublicIPSpec{
-					Name: subnet.NatGateway.NatGatewayIP.Name,
-				},
-				Subnet: subnet,
-			})
+			if _, ok := natGatewaySet[subnet.NatGateway.Name]; !ok {
+				natGatewaySet[subnet.NatGateway.Name] = struct{}{} // empty struct to represent hash set
+				natGateways = append(natGateways, &natgateways.NatGatewaySpec{
+					Name:           subnet.NatGateway.Name,
+					ResourceGroup:  s.ResourceGroup(),
+					SubscriptionID: s.SubscriptionID(),
+					Location:       s.Location(),
+					NatGatewayIP: infrav1.PublicIPSpec{
+						Name: subnet.NatGateway.NatGatewayIP.Name,
+					},
+				})
+			}
 		}
 	}
 
@@ -246,12 +254,12 @@ func (s *ClusterScope) NatGatewaySpecs() []azure.NatGatewaySpec {
 
 // NSGSpecs returns the security group specs.
 func (s *ClusterScope) NSGSpecs() []azure.NSGSpec {
-	nsgspecs := []azure.NSGSpec{}
-	for _, subnet := range s.AzureCluster.Spec.NetworkSpec.Subnets {
-		nsgspecs = append(nsgspecs, azure.NSGSpec{
+	nsgspecs := make([]azure.NSGSpec, len(s.AzureCluster.Spec.NetworkSpec.Subnets))
+	for i, subnet := range s.AzureCluster.Spec.NetworkSpec.Subnets {
+		nsgspecs[i] = azure.NSGSpec{
 			Name:          subnet.SecurityGroup.Name,
 			SecurityRules: subnet.SecurityGroup.SecurityRules,
-		})
+		}
 	}
 
 	return nsgspecs
@@ -259,7 +267,12 @@ func (s *ClusterScope) NSGSpecs() []azure.NSGSpec {
 
 // SubnetSpecs returns the subnets specs.
 func (s *ClusterScope) SubnetSpecs() []azure.SubnetSpec {
-	subnetSpecs := []azure.SubnetSpec{}
+	numberOfSubnets := len(s.AzureCluster.Spec.NetworkSpec.Subnets)
+	if s.AzureCluster.Spec.BastionSpec.AzureBastion != nil {
+		numberOfSubnets++
+	}
+
+	subnetSpecs := make([]azure.SubnetSpec, 0, numberOfSubnets)
 	for _, subnet := range s.AzureCluster.Spec.NetworkSpec.Subnets {
 		subnetSpec := azure.SubnetSpec{
 			Name:              subnet.Name,
@@ -299,23 +312,24 @@ func (s *ClusterScope) GroupSpec() azure.ResourceSpecGetter {
 }
 
 // VnetPeeringSpecs returns the virtual network peering specs.
-func (s *ClusterScope) VnetPeeringSpecs() []azure.VnetPeeringSpec {
-	peeringSpecs := make([]azure.VnetPeeringSpec, 2*len(s.Vnet().Peerings))
-
+func (s *ClusterScope) VnetPeeringSpecs() []azure.ResourceSpecGetter {
+	peeringSpecs := make([]azure.ResourceSpecGetter, 2*len(s.Vnet().Peerings))
 	for i, peering := range s.Vnet().Peerings {
-		forwardPeering := azure.VnetPeeringSpec{
+		forwardPeering := &vnetpeerings.VnetPeeringSpec{
 			PeeringName:         azure.GenerateVnetPeeringName(s.Vnet().Name, peering.RemoteVnetName),
 			SourceVnetName:      s.Vnet().Name,
 			SourceResourceGroup: s.Vnet().ResourceGroup,
 			RemoteVnetName:      peering.RemoteVnetName,
 			RemoteResourceGroup: peering.ResourceGroup,
+			SubscriptionID:      s.SubscriptionID(),
 		}
-		reversePeering := azure.VnetPeeringSpec{
+		reversePeering := &vnetpeerings.VnetPeeringSpec{
 			PeeringName:         azure.GenerateVnetPeeringName(peering.RemoteVnetName, s.Vnet().Name),
 			SourceVnetName:      peering.RemoteVnetName,
 			SourceResourceGroup: peering.ResourceGroup,
 			RemoteVnetName:      s.Vnet().Name,
 			RemoteResourceGroup: s.Vnet().ResourceGroup,
+			SubscriptionID:      s.SubscriptionID(),
 		}
 		peeringSpecs[i*2] = forwardPeering
 		peeringSpecs[i*2+1] = reversePeering
@@ -440,6 +454,15 @@ func (s *ClusterScope) SetSubnet(subnetSpec infrav1.SubnetSpec) {
 		if sn.Name == subnetSpec.Name {
 			s.AzureCluster.Spec.NetworkSpec.Subnets[i] = subnetSpec
 			return
+		}
+	}
+}
+
+func (s *ClusterScope) SetNatGatewayIDInSubnets(name string, id string) {
+	for _, subnet := range s.Subnets() {
+		if subnet.NatGateway.Name == name {
+			subnet.NatGateway.ID = id
+			s.SetSubnet(subnet)
 		}
 	}
 }
@@ -589,10 +612,17 @@ func (s *ClusterScope) ListOptionsLabelSelector() client.ListOption {
 
 // PatchObject persists the cluster configuration and status.
 func (s *ClusterScope) PatchObject(ctx context.Context) error {
+	ctx, _, done := tele.StartSpanWithLogger(ctx, "scope.ClusterScope.PatchObject")
+	defer done()
+
 	conditions.SetSummary(s.AzureCluster,
 		conditions.WithConditions(
 			infrav1.ResourceGroupReadyCondition,
+			infrav1.RouteTablesReadyCondition,
 			infrav1.NetworkInfrastructureReadyCondition,
+			infrav1.VnetPeeringReadyCondition,
+			infrav1.DisksReadyCondition,
+			infrav1.NATGatewaysReadyCondition,
 		),
 	)
 
@@ -602,7 +632,11 @@ func (s *ClusterScope) PatchObject(ctx context.Context) error {
 		patch.WithOwnedConditions{Conditions: []clusterv1.ConditionType{
 			clusterv1.ReadyCondition,
 			infrav1.ResourceGroupReadyCondition,
+			infrav1.RouteTablesReadyCondition,
 			infrav1.NetworkInfrastructureReadyCondition,
+			infrav1.VnetPeeringReadyCondition,
+			infrav1.DisksReadyCondition,
+			infrav1.NATGatewaysReadyCondition,
 		}})
 }
 
@@ -631,7 +665,7 @@ func (s *ClusterScope) APIServerPort() int32 {
 // APIServerHost returns the hostname used to reach the API server.
 func (s *ClusterScope) APIServerHost() string {
 	if s.IsAPIServerPrivate() {
-		return azure.GeneratePrivateFQDN(s.ClusterName())
+		return azure.GeneratePrivateFQDN(s.GetPrivateDNSZoneName())
 	}
 	return s.APIServerPublicIP().DNSName
 }

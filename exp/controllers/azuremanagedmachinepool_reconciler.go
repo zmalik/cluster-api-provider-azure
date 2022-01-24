@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2021-04-01/compute"
 	"github.com/pkg/errors"
@@ -52,10 +53,6 @@ type (
 	}
 )
 
-var (
-	notFoundErr = new(AgentPoolVMSSNotFoundError)
-)
-
 // NewAgentPoolVMSSNotFoundError creates a new AgentPoolVMSSNotFoundError.
 func NewAgentPoolVMSSNotFoundError(nodeResourceGroup, poolName string) *AgentPoolVMSSNotFoundError {
 	return &AgentPoolVMSSNotFoundError{
@@ -77,20 +74,29 @@ func (a *AgentPoolVMSSNotFoundError) Is(target error) bool {
 }
 
 // newAzureManagedMachinePoolService populates all the services based on input scope.
-func newAzureManagedMachinePoolService(scope *scope.ManagedControlPlaneScope) *azureManagedMachinePoolService {
+func newAzureManagedMachinePoolService(scope *scope.ManagedControlPlaneScope) (*azureManagedMachinePoolService, error) {
+	var authorizer azure.Authorizer = scope
+	if scope.Location() != "" {
+		regionalAuthorizer, err := azure.WithRegionalBaseURI(scope, scope.Location())
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create a regional authorizer")
+		}
+		authorizer = regionalAuthorizer
+	}
+
 	return &azureManagedMachinePoolService{
 		scope:         scope,
 		agentPoolsSvc: agentpools.New(scope),
-		scaleSetsSvc:  scalesets.NewClient(scope),
-	}
+		scaleSetsSvc:  scalesets.NewClient(authorizer),
+	}, nil
 }
 
 // Reconcile reconciles all the services in a predetermined order.
 func (s *azureManagedMachinePoolService) Reconcile(ctx context.Context) error {
-	ctx, _, done := tele.StartSpanWithLogger(ctx, "controllers.azureManagedMachinePoolService.Reconcile")
+	ctx, log, done := tele.StartSpanWithLogger(ctx, "controllers.azureManagedMachinePoolService.Reconcile")
 	defer done()
 
-	s.scope.Info("reconciling machine pool")
+	log.Info("reconciling managed machine pool")
 	agentPoolName := s.scope.AgentPoolSpec().Name
 
 	if err := s.agentPoolsSvc.Reconcile(ctx); err != nil {
@@ -113,7 +119,7 @@ func (s *azureManagedMachinePoolService) Reconcile(ctx context.Context) error {
 	}
 
 	if match == nil {
-		return NewAgentPoolVMSSNotFoundError(nodeResourceGroup, agentPoolName)
+		return azure.WithTransientError(NewAgentPoolVMSSNotFoundError(nodeResourceGroup, agentPoolName), 20*time.Second)
 	}
 
 	instances, err := s.scaleSetsSvc.ListInstances(ctx, nodeResourceGroup, *match.Name)
@@ -130,7 +136,7 @@ func (s *azureManagedMachinePoolService) Reconcile(ctx context.Context) error {
 	s.scope.SetAgentPoolReplicas(int32(len(providerIDs)))
 	s.scope.SetAgentPoolReady(true)
 
-	s.scope.Info("reconciled machine pool successfully")
+	log.Info("reconciled managed machine pool successfully")
 	return nil
 }
 
@@ -144,9 +150,4 @@ func (s *azureManagedMachinePoolService) Delete(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-// IsAgentPoolVMSSNotFoundError returns true if the error is an AgentPoolVMSSNotFoundError.
-func IsAgentPoolVMSSNotFoundError(err error) bool {
-	return errors.Is(err, notFoundErr)
 }

@@ -24,10 +24,10 @@ import (
 	reflect "reflect"
 
 	autorest "github.com/Azure/go-autorest/autorest"
-	logr "github.com/go-logr/logr"
 	gomock "github.com/golang/mock/gomock"
 	v1beta1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	azure "sigs.k8s.io/cluster-api-provider-azure/azure"
+	v1beta10 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
 // MockNatGatewayScope is a mock of NatGatewayScope interface.
@@ -51,6 +51,20 @@ func NewMockNatGatewayScope(ctrl *gomock.Controller) *MockNatGatewayScope {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockNatGatewayScope) EXPECT() *MockNatGatewayScopeMockRecorder {
 	return m.recorder
+}
+
+// APIServerLB mocks base method.
+func (m *MockNatGatewayScope) APIServerLB() *v1beta1.LoadBalancerSpec {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "APIServerLB")
+	ret0, _ := ret[0].(*v1beta1.LoadBalancerSpec)
+	return ret0
+}
+
+// APIServerLB indicates an expected call of APIServerLB.
+func (mr *MockNatGatewayScopeMockRecorder) APIServerLB() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "APIServerLB", reflect.TypeOf((*MockNatGatewayScope)(nil).APIServerLB))
 }
 
 // APIServerLBName mocks base method.
@@ -235,35 +249,16 @@ func (mr *MockNatGatewayScopeMockRecorder) ControlPlaneSubnet() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ControlPlaneSubnet", reflect.TypeOf((*MockNatGatewayScope)(nil).ControlPlaneSubnet))
 }
 
-// Enabled mocks base method.
-func (m *MockNatGatewayScope) Enabled() bool {
+// DeleteLongRunningOperationState mocks base method.
+func (m *MockNatGatewayScope) DeleteLongRunningOperationState(arg0, arg1 string) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Enabled")
-	ret0, _ := ret[0].(bool)
-	return ret0
+	m.ctrl.Call(m, "DeleteLongRunningOperationState", arg0, arg1)
 }
 
-// Enabled indicates an expected call of Enabled.
-func (mr *MockNatGatewayScopeMockRecorder) Enabled() *gomock.Call {
+// DeleteLongRunningOperationState indicates an expected call of DeleteLongRunningOperationState.
+func (mr *MockNatGatewayScopeMockRecorder) DeleteLongRunningOperationState(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Enabled", reflect.TypeOf((*MockNatGatewayScope)(nil).Enabled))
-}
-
-// Error mocks base method.
-func (m *MockNatGatewayScope) Error(err error, msg string, keysAndValues ...interface{}) {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{err, msg}
-	for _, a := range keysAndValues {
-		varargs = append(varargs, a)
-	}
-	m.ctrl.Call(m, "Error", varargs...)
-}
-
-// Error indicates an expected call of Error.
-func (mr *MockNatGatewayScopeMockRecorder) Error(err, msg interface{}, keysAndValues ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{err, msg}, keysAndValues...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Error", reflect.TypeOf((*MockNatGatewayScope)(nil).Error), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteLongRunningOperationState", reflect.TypeOf((*MockNatGatewayScope)(nil).DeleteLongRunningOperationState), arg0, arg1)
 }
 
 // FailureDomains mocks base method.
@@ -278,6 +273,20 @@ func (m *MockNatGatewayScope) FailureDomains() []string {
 func (mr *MockNatGatewayScopeMockRecorder) FailureDomains() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FailureDomains", reflect.TypeOf((*MockNatGatewayScope)(nil).FailureDomains))
+}
+
+// GetLongRunningOperationState mocks base method.
+func (m *MockNatGatewayScope) GetLongRunningOperationState(arg0, arg1 string) *v1beta1.Future {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLongRunningOperationState", arg0, arg1)
+	ret0, _ := ret[0].(*v1beta1.Future)
+	return ret0
+}
+
+// GetLongRunningOperationState indicates an expected call of GetLongRunningOperationState.
+func (mr *MockNatGatewayScopeMockRecorder) GetLongRunningOperationState(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLongRunningOperationState", reflect.TypeOf((*MockNatGatewayScope)(nil).GetLongRunningOperationState), arg0, arg1)
 }
 
 // GetPrivateDNSZoneName mocks base method.
@@ -306,23 +315,6 @@ func (m *MockNatGatewayScope) HashKey() string {
 func (mr *MockNatGatewayScopeMockRecorder) HashKey() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HashKey", reflect.TypeOf((*MockNatGatewayScope)(nil).HashKey))
-}
-
-// Info mocks base method.
-func (m *MockNatGatewayScope) Info(msg string, keysAndValues ...interface{}) {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{msg}
-	for _, a := range keysAndValues {
-		varargs = append(varargs, a)
-	}
-	m.ctrl.Call(m, "Info", varargs...)
-}
-
-// Info indicates an expected call of Info.
-func (mr *MockNatGatewayScopeMockRecorder) Info(msg interface{}, keysAndValues ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{msg}, keysAndValues...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Info", reflect.TypeOf((*MockNatGatewayScope)(nil).Info), varargs...)
 }
 
 // IsAPIServerPrivate mocks base method.
@@ -382,10 +374,10 @@ func (mr *MockNatGatewayScopeMockRecorder) Location() *gomock.Call {
 }
 
 // NatGatewaySpecs mocks base method.
-func (m *MockNatGatewayScope) NatGatewaySpecs() []azure.NatGatewaySpec {
+func (m *MockNatGatewayScope) NatGatewaySpecs() []azure.ResourceSpecGetter {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NatGatewaySpecs")
-	ret0, _ := ret[0].([]azure.NatGatewaySpec)
+	ret0, _ := ret[0].([]azure.ResourceSpecGetter)
 	return ret0
 }
 
@@ -449,6 +441,30 @@ func (m *MockNatGatewayScope) ResourceGroup() string {
 func (mr *MockNatGatewayScopeMockRecorder) ResourceGroup() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResourceGroup", reflect.TypeOf((*MockNatGatewayScope)(nil).ResourceGroup))
+}
+
+// SetLongRunningOperationState mocks base method.
+func (m *MockNatGatewayScope) SetLongRunningOperationState(arg0 *v1beta1.Future) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetLongRunningOperationState", arg0)
+}
+
+// SetLongRunningOperationState indicates an expected call of SetLongRunningOperationState.
+func (mr *MockNatGatewayScopeMockRecorder) SetLongRunningOperationState(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLongRunningOperationState", reflect.TypeOf((*MockNatGatewayScope)(nil).SetLongRunningOperationState), arg0)
+}
+
+// SetNatGatewayIDInSubnets mocks base method.
+func (m *MockNatGatewayScope) SetNatGatewayIDInSubnets(natGatewayName, natGatewayID string) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetNatGatewayIDInSubnets", natGatewayName, natGatewayID)
+}
+
+// SetNatGatewayIDInSubnets indicates an expected call of SetNatGatewayIDInSubnets.
+func (mr *MockNatGatewayScopeMockRecorder) SetNatGatewayIDInSubnets(natGatewayName, natGatewayID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNatGatewayIDInSubnets", reflect.TypeOf((*MockNatGatewayScope)(nil).SetNatGatewayIDInSubnets), natGatewayName, natGatewayID)
 }
 
 // SetSubnet mocks base method.
@@ -519,18 +535,40 @@ func (mr *MockNatGatewayScopeMockRecorder) TenantID() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TenantID", reflect.TypeOf((*MockNatGatewayScope)(nil).TenantID))
 }
 
-// V mocks base method.
-func (m *MockNatGatewayScope) V(level int) logr.Logger {
+// UpdateDeleteStatus mocks base method.
+func (m *MockNatGatewayScope) UpdateDeleteStatus(arg0 v1beta10.ConditionType, arg1 string, arg2 error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "V", level)
-	ret0, _ := ret[0].(logr.Logger)
-	return ret0
+	m.ctrl.Call(m, "UpdateDeleteStatus", arg0, arg1, arg2)
 }
 
-// V indicates an expected call of V.
-func (mr *MockNatGatewayScopeMockRecorder) V(level interface{}) *gomock.Call {
+// UpdateDeleteStatus indicates an expected call of UpdateDeleteStatus.
+func (mr *MockNatGatewayScopeMockRecorder) UpdateDeleteStatus(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "V", reflect.TypeOf((*MockNatGatewayScope)(nil).V), level)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateDeleteStatus", reflect.TypeOf((*MockNatGatewayScope)(nil).UpdateDeleteStatus), arg0, arg1, arg2)
+}
+
+// UpdatePatchStatus mocks base method.
+func (m *MockNatGatewayScope) UpdatePatchStatus(arg0 v1beta10.ConditionType, arg1 string, arg2 error) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "UpdatePatchStatus", arg0, arg1, arg2)
+}
+
+// UpdatePatchStatus indicates an expected call of UpdatePatchStatus.
+func (mr *MockNatGatewayScopeMockRecorder) UpdatePatchStatus(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePatchStatus", reflect.TypeOf((*MockNatGatewayScope)(nil).UpdatePatchStatus), arg0, arg1, arg2)
+}
+
+// UpdatePutStatus mocks base method.
+func (m *MockNatGatewayScope) UpdatePutStatus(arg0 v1beta10.ConditionType, arg1 string, arg2 error) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "UpdatePutStatus", arg0, arg1, arg2)
+}
+
+// UpdatePutStatus indicates an expected call of UpdatePutStatus.
+func (mr *MockNatGatewayScopeMockRecorder) UpdatePutStatus(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePutStatus", reflect.TypeOf((*MockNatGatewayScope)(nil).UpdatePutStatus), arg0, arg1, arg2)
 }
 
 // Vnet mocks base method.
@@ -545,36 +583,4 @@ func (m *MockNatGatewayScope) Vnet() *v1beta1.VnetSpec {
 func (mr *MockNatGatewayScopeMockRecorder) Vnet() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Vnet", reflect.TypeOf((*MockNatGatewayScope)(nil).Vnet))
-}
-
-// WithName mocks base method.
-func (m *MockNatGatewayScope) WithName(name string) logr.Logger {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WithName", name)
-	ret0, _ := ret[0].(logr.Logger)
-	return ret0
-}
-
-// WithName indicates an expected call of WithName.
-func (mr *MockNatGatewayScopeMockRecorder) WithName(name interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WithName", reflect.TypeOf((*MockNatGatewayScope)(nil).WithName), name)
-}
-
-// WithValues mocks base method.
-func (m *MockNatGatewayScope) WithValues(keysAndValues ...interface{}) logr.Logger {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{}
-	for _, a := range keysAndValues {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "WithValues", varargs...)
-	ret0, _ := ret[0].(logr.Logger)
-	return ret0
-}
-
-// WithValues indicates an expected call of WithValues.
-func (mr *MockNatGatewayScopeMockRecorder) WithValues(keysAndValues ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WithValues", reflect.TypeOf((*MockNatGatewayScope)(nil).WithValues), keysAndValues...)
 }

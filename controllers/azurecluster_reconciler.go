@@ -20,8 +20,6 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/scope"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/services/bastionhosts"
@@ -38,6 +36,7 @@ import (
 	"sigs.k8s.io/cluster-api-provider-azure/azure/services/virtualnetworks"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/services/vnetpeerings"
 	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
 // azureClusterService is the reconciler called by the AzureCluster controller.
@@ -118,7 +117,7 @@ func (s *azureClusterService) Reconcile(ctx context.Context) error {
 	}
 
 	if err := s.natGatewaySvc.Reconcile(ctx); err != nil {
-		return errors.Wrapf(err, "failed to reconcile nat gateway")
+		return errors.Wrapf(err, "failed to reconcile NAT gateway")
 	}
 
 	if err := s.subnetsSvc.Reconcile(ctx); err != nil {
@@ -176,7 +175,7 @@ func (s *azureClusterService) Delete(ctx context.Context) error {
 			}
 
 			if err := s.natGatewaySvc.Delete(ctx); err != nil {
-				return errors.Wrapf(err, "failed to delete nat gateway")
+				return errors.Wrapf(err, "failed to delete NAT gateway")
 			}
 
 			if err := s.publicIPSvc.Delete(ctx); err != nil {

@@ -21,8 +21,8 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/profiles/2019-03-01/authorization/mgmt/authorization"
+	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2021-04-01/compute"
 	"github.com/Azure/go-autorest/autorest/to"
-	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
@@ -35,7 +35,6 @@ const azureBuiltInContributorID = "b24988ac-6180-42a0-ab88-20f7382dd24c"
 
 // RoleAssignmentScope defines the scope interface for a role assignment service.
 type RoleAssignmentScope interface {
-	logr.Logger
 	azure.ClusterDescriber
 	RoleAssignmentSpecs() []azure.RoleAssignmentSpec
 }
@@ -78,12 +77,21 @@ func (s *Service) Reconcile(ctx context.Context) error {
 }
 
 func (s *Service) reconcileVM(ctx context.Context, roleSpec azure.RoleAssignmentSpec) error {
-	ctx, _, done := tele.StartSpanWithLogger(ctx, "roleassignments.Service.reconcileVM")
+	ctx, log, done := tele.StartSpanWithLogger(ctx, "roleassignments.Service.reconcileVM")
 	defer done()
 
-	resultVM, err := s.virtualMachinesClient.Get(ctx, s.Scope.ResourceGroup(), roleSpec.MachineName)
+	spec := &virtualmachines.VMSpec{
+		Name:          roleSpec.MachineName,
+		ResourceGroup: s.Scope.ResourceGroup(),
+	}
+
+	resultVMIface, err := s.virtualMachinesClient.Get(ctx, spec)
 	if err != nil {
 		return errors.Wrap(err, "cannot get VM to assign role to system assigned identity")
+	}
+	resultVM, ok := resultVMIface.(compute.VirtualMachine)
+	if !ok {
+		return errors.Errorf("%T is not a compute.VirtualMachine", resultVMIface)
 	}
 
 	err = s.assignRole(ctx, roleSpec.Name, resultVM.Identity.PrincipalID)
@@ -91,13 +99,13 @@ func (s *Service) reconcileVM(ctx context.Context, roleSpec azure.RoleAssignment
 		return errors.Wrap(err, "cannot assign role to VM system assigned identity")
 	}
 
-	s.Scope.V(2).Info("successfully created role assignment for generated Identity for VM", "virtual machine", roleSpec.MachineName)
+	log.V(2).Info("successfully created role assignment for generated Identity for VM", "virtual machine", roleSpec.MachineName)
 
 	return nil
 }
 
 func (s *Service) reconcileVMSS(ctx context.Context, roleSpec azure.RoleAssignmentSpec) error {
-	ctx, _, done := tele.StartSpanWithLogger(ctx, "roleassignments.Service.reconcileVMSS")
+	ctx, log, done := tele.StartSpanWithLogger(ctx, "roleassignments.Service.reconcileVMSS")
 	defer done()
 
 	resultVMSS, err := s.virtualMachineScaleSetClient.Get(ctx, s.Scope.ResourceGroup(), roleSpec.MachineName)
@@ -110,7 +118,7 @@ func (s *Service) reconcileVMSS(ctx context.Context, roleSpec azure.RoleAssignme
 		return errors.Wrap(err, "cannot assign role to VMSS system assigned identity")
 	}
 
-	s.Scope.V(2).Info("successfully created role assignment for generated Identity for VMSS", "virtual machine scale set", roleSpec.MachineName)
+	log.V(2).Info("successfully created role assignment for generated Identity for VMSS", "virtual machine scale set", roleSpec.MachineName)
 
 	return nil
 }

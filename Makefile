@@ -48,9 +48,14 @@ EXP_DIR := exp
 GO_INSTALL = ./scripts/go_install.sh
 E2E_DATA_DIR ?= $(ROOT_DIR)/test/e2e/data
 KUBETEST_CONF_PATH ?= $(abspath $(E2E_DATA_DIR)/kubetest/conformance.yaml)
-KUBETEST_WINDOWS_CONF_PATH ?= $(abspath $(E2E_DATA_DIR)/kubetest/upstream-windows.yaml)
+KUBETEST_WINDOWS_CONFIG ?= upstream-windows.yaml
+KUBETEST_WINDOWS_CONF_PATH ?= $(abspath $(E2E_DATA_DIR)/kubetest/$(KUBETEST_WINDOWS_CONFIG))
 KUBETEST_REPO_LIST_PATH ?= $(abspath $(E2E_DATA_DIR)/kubetest/)
 AZURE_TEMPLATES := $(E2E_DATA_DIR)/infrastructure-azure
+ADDONS_DIR := templates/addons
+
+# use the project local tool binaries first
+export PATH := $(TOOLS_BIN_DIR):$(PATH)
 
 # set --output-base used for conversion-gen which needs to be different for in GOPATH and outside GOPATH dev
 ifneq ($(abspath $(ROOT_DIR)),$(GOPATH)/src/sigs.k8s.io/cluster-api-provider-azure)
@@ -58,18 +63,19 @@ ifneq ($(abspath $(ROOT_DIR)),$(GOPATH)/src/sigs.k8s.io/cluster-api-provider-azu
 endif
 
 # Binaries.
-CONTROLLER_GEN_VER := v0.7.0
+CONTROLLER_GEN_VER := v0.8.0
 CONTROLLER_GEN_BIN := controller-gen
 CONTROLLER_GEN := $(TOOLS_BIN_DIR)/$(CONTROLLER_GEN_BIN)-$(CONTROLLER_GEN_VER)
 
-CONVERSION_GEN_VER := v0.22.2
+CONVERSION_GEN_VER := v0.23.1
 CONVERSION_GEN_BIN := conversion-gen
 CONVERSION_GEN := $(TOOLS_BIN_DIR)/$(CONVERSION_GEN_BIN)-$(CONVERSION_GEN_VER)
 
+ENVSUBST_VER := v2.0.0-20210730161058-179042472c46
 ENVSUBST_BIN := envsubst
-ENVSUBST := $(TOOLS_BIN_DIR)/$(ENVSUBST_BIN)-drone
+ENVSUBST := $(TOOLS_BIN_DIR)/$(ENVSUBST_BIN)-$(ENVSUBST_VER)
 
-GOLANGCI_LINT_VER := v1.42.1
+GOLANGCI_LINT_VER := v1.43.0
 GOLANGCI_LINT_BIN := golangci-lint
 GOLANGCI_LINT := $(TOOLS_BIN_DIR)/$(GOLANGCI_LINT_BIN)-$(GOLANGCI_LINT_VER)
 
@@ -81,9 +87,13 @@ MOCKGEN_VER := v1.6.0
 MOCKGEN_BIN := mockgen
 MOCKGEN := $(TOOLS_BIN_DIR)/$(MOCKGEN_BIN)-$(MOCKGEN_VER)
 
-RELEASE_NOTES_VER := v0.11.0
+RELEASE_NOTES_VER := v0.12.0
 RELEASE_NOTES_BIN := release-notes
 RELEASE_NOTES := $(TOOLS_BIN_DIR)/$(RELEASE_NOTES_BIN)-$(RELEASE_NOTES_VER)
+
+KPROMO_VER := v3.3.0-beta.3
+KPROMO_BIN := kpromo
+KPROMO := $(TOOLS_BIN_DIR)/$(KPROMO_BIN)-$(KPROMO_VER)
 
 GO_APIDIFF_VER := v0.1.0
 GO_APIDIFF_BIN := go-apidiff
@@ -93,9 +103,13 @@ GINKGO_VER := v1.16.5
 GINKGO_BIN := ginkgo
 GINKGO := $(TOOLS_BIN_DIR)/$(GINKGO_BIN)-$(GINKGO_VER)
 
-KUBECTL_VER := v1.22.2
-KUBECTL_BIN := $(TOOLS_BIN_DIR)/kubectl
-KUBECTL := $(KUBECTL_BIN)-$(KUBECTL_VER)
+KUBECTL_VER := v1.22.4
+KUBECTL_BIN := kubectl
+KUBECTL := $(TOOLS_BIN_DIR)/$(KUBECTL_BIN)-$(KUBECTL_VER)
+
+YQ_VER := v4.14.2
+YQ_BIN := yq
+YQ :=  $(TOOLS_BIN_DIR)/$(YQ_BIN)-$(YQ_VER)
 
 KUBE_APISERVER=$(TOOLS_BIN_DIR)/kube-apiserver
 ETCD=$(TOOLS_BIN_DIR)/etcd
@@ -107,7 +121,7 @@ PROD_REGISTRY := us.gcr.io/k8s-artifacts-prod/cluster-api-azure
 IMAGE_NAME ?= cluster-api-azure-controller
 CONTROLLER_IMG ?= $(REGISTRY)/$(IMAGE_NAME)
 TAG ?= dev
-ARCH ?= amd64
+ARCH ?= $(GOARCH)
 ALL_ARCH = amd64 arm arm64 ppc64le s390x
 
 # Allow overriding manifest generation destination directory
@@ -169,7 +183,7 @@ test-cover: envs-test $(KUBECTL) $(KUBE_APISERVER) $(ETCD) ## Run tests with cod
 	go tool cover -html=coverage.out -o coverage.html
 
 .PHONY: test-e2e-run
-test-e2e-run: generate-e2e-templates $(ENVSUBST) $(KUBECTL) $(GINKGO) ## Run e2e tests
+test-e2e-run: generate-e2e-templates $(ENVSUBST) $(KUSTOMIZE) $(KUBECTL) $(GINKGO) ## Run e2e tests
 	$(ENVSUBST) < $(E2E_CONF_FILE) > $(E2E_CONF_FILE_ENVSUBST) && \
     $(GINKGO) -v -trace -tags=e2e -focus="$(GINKGO_FOCUS)" -skip="$(GINKGO_SKIP)" -nodes=$(GINKGO_NODES) --noColor=$(GINKGO_NOCOLOR) $(GINKGO_ARGS) ./test/e2e -- \
     	-e2e.artifacts-folder="$(ARTIFACTS)" \
@@ -232,12 +246,7 @@ $(CONVERSION_GEN): ## Build conversion-gen.
 	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) k8s.io/code-generator/cmd/conversion-gen $(CONVERSION_GEN_BIN) $(CONVERSION_GEN_VER)
 
 $(ENVSUBST): ## Build envsubst from tools folder.
-	rm -f $(TOOLS_BIN_DIR)/$(ENVSUBST_BIN)*
-	mkdir -p $(TOOLS_DIR) && cd $(TOOLS_DIR) && go build -tags=tools -o $(ENVSUBST) github.com/drone/envsubst/v2/cmd/envsubst
-	ln -sf $(ENVSUBST) $(TOOLS_BIN_DIR)/$(ENVSUBST_BIN)
-
-.PHONY: $(ENVSUBST_BIN)
-$(ENVSUBST_BIN): $(ENVSUBST) ## Build envsubst from tools folder.
+	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) github.com/drone/envsubst/v2/cmd/envsubst $(ENVSUBST_BIN) $(ENVSUBST_VER)
 
 $(GOLANGCI_LINT): ## Build golangci-lint from tools folder.
 	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) github.com/golangci/golangci-lint/cmd/golangci-lint $(GOLANGCI_LINT_BIN) $(GOLANGCI_LINT_VER)
@@ -247,6 +256,9 @@ $(KUSTOMIZE): ## Build kustomize from tools folder.
 
 $(MOCKGEN): ## Build mockgen from tools folder.
 	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) github.com/golang/mock/mockgen $(MOCKGEN_BIN) $(MOCKGEN_VER)
+
+$(KPROMO): ## Build kpromo.
+	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) sigs.k8s.io/promo-tools/v3/cmd/kpromo $(KPROMO_BIN) $(KPROMO_VER)
 
 $(RELEASE_NOTES): ## Build release notes.
 	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) k8s.io/release/cmd/release-notes $(RELEASE_NOTES_BIN) $(RELEASE_NOTES_VER)
@@ -259,13 +271,25 @@ $(GINKGO): ## Build ginkgo.
 
 $(KUBECTL): ## Build kubectl
 	mkdir -p $(TOOLS_BIN_DIR)
-	rm -f "$(KUBECTL)*"
+	rm -f "$(TOOLS_BIN_DIR)/$(KUBECTL_BIN)*"
 	curl --retry $(CURL_RETRIES) -fsL https://storage.googleapis.com/kubernetes-release/release/$(KUBECTL_VER)/bin/$(GOOS)/$(GOARCH)/kubectl -o $(KUBECTL)
-	ln -sf "$(KUBECTL)" "$(KUBECTL_BIN)"
-	chmod +x "$(KUBECTL_BIN)" "$(KUBECTL)"
+	ln -sf $(KUBECTL) $(TOOLS_BIN_DIR)/$(KUBECTL_BIN)
+	chmod +x $(KUBECTL) $(TOOLS_BIN_DIR)/$(KUBECTL_BIN)
+
+.PHONY: $(ENVSUBST_BIN)
+$(ENVSUBST_BIN): $(ENVSUBST)
 
 .PHONY: $(KUBECTL_BIN)
-$(KUBECTL_BIN): $(KUBECTL) ## Building kubectl from the tools folder
+$(KUBECTL_BIN): $(KUBECTL)
+
+.PHONY: $(GO_APIDIFF_BIN)
+$(GO_APIDIFF_BIN): $(GO_APIDIFF)
+
+$(YQ): ## Build yq.
+	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) github.com/mikefarah/yq/v4 $(YQ_BIN) $(YQ_VER)
+
+.PHONY: $(YQ_BIN)
+$(YQ_BIN): $(YQ) ## Building yq from the tools folder
 
 ## --------------------------------------
 ## Linting
@@ -296,6 +320,7 @@ generate: ## Generate code
 	$(MAKE) generate-manifests
 	$(MAKE) generate-flavors
 	$(MAKE) generate-e2e-templates
+	$(MAKE) generate-addons
 
 .PHONY: generate-go
 generate-go: $(CONTROLLER_GEN) $(MOCKGEN) $(CONVERSION_GEN) ## Runs Go related generate targets
@@ -357,6 +382,10 @@ generate-e2e-templates: $(KUSTOMIZE)
 	$(KUSTOMIZE) build $(AZURE_TEMPLATES)/v1beta1/cluster-template-node-drain --load-restrictor LoadRestrictionsNone > $(AZURE_TEMPLATES)/v1beta1/cluster-template-node-drain.yaml
 	$(KUSTOMIZE) build $(AZURE_TEMPLATES)/v1beta1/cluster-template-upgrades --load-restrictor LoadRestrictionsNone > $(AZURE_TEMPLATES)/v1beta1/cluster-template-upgrades.yaml
 	$(KUSTOMIZE) build $(AZURE_TEMPLATES)/v1beta1/cluster-template-kcp-scale-in --load-restrictor LoadRestrictionsNone > $(AZURE_TEMPLATES)/v1beta1/cluster-template-kcp-scale-in.yaml
+
+.PHONY: generate-addons
+generate-addons:
+	$(KUSTOMIZE) build $(ADDONS_DIR)/metrics-server > $(ADDONS_DIR)/metrics-server/metrics-server.yaml
 
 ## --------------------------------------
 ## Docker
@@ -432,6 +461,8 @@ GIT_ORG_NAME ?= kubernetes-sigs
 FULL_VERSION := $(RELEASE_TAG:v%=%)
 MINOR_VERSION := $(shell v='$(FULL_VERSION)'; echo "$${v%.*}")
 RELEASE_BRANCH ?= release-$(MINOR_VERSION)
+USER_FORK ?= $(shell git config --get remote.origin.url | cut -d/ -f4)
+IMAGE_REVIEWERS ?= $(shell ./hack/get-project-maintainers.sh)
 
 $(RELEASE_DIR):
 	mkdir -p $(RELEASE_DIR)/
@@ -494,6 +525,10 @@ release-notes: $(RELEASE_NOTES) $(RELEASE_NOTES_DIR)
 	rm -f $(RELEASE_NOTES_DIR)/tmp-release-notes.md; \
 	fi
 
+.PHONY: promote-images
+promote-images: $(KPROMO)
+	$(KPROMO) pr --project cluster-api-azure --tag $(RELEASE_TAG) --reviewers "$(IMAGE_REVIEWERS)" --fork $(USER_FORK)
+
 ## --------------------------------------
 ## Development
 ## --------------------------------------
@@ -510,7 +545,7 @@ create-management-cluster: $(KUSTOMIZE) $(ENVSUBST)
 	./hack/create-identity-secret.sh
 
 	# Deploy CAPI
-	curl --retry $(CURL_RETRIES) -sSL https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.0.0/cluster-api-components.yaml | $(ENVSUBST) | kubectl apply -f -
+	curl --retry $(CURL_RETRIES) -sSL https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.0.2/cluster-api-components.yaml | $(ENVSUBST) | kubectl apply -f -
 
 	# Deploy CAPZ
 	kind load docker-image $(CONTROLLER_IMG)-$(ARCH):$(TAG) --name=capz

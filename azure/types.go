@@ -51,11 +51,6 @@ type NICSpec struct {
 	EnableIPForwarding        bool
 }
 
-// DiskSpec defines the specification for a Disk.
-type DiskSpec struct {
-	Name string
-}
-
 // LBSpec defines the specification for a Load Balancer.
 type LBSpec struct {
 	Name                 string
@@ -67,28 +62,6 @@ type LBSpec struct {
 	FrontendIPConfigs    []infrav1.FrontendIP
 	APIServerPort        int32
 	IdleTimeoutInMinutes *int32
-}
-
-// RouteTableRole defines the unique role of a route table.
-type RouteTableRole string
-
-// RouteTableSpec defines the specification for a Route Table.
-type RouteTableSpec struct {
-	Name   string
-	Subnet infrav1.SubnetSpec
-}
-
-// NatGatewaySpec defines the specification for a Nat Gateway.
-type NatGatewaySpec struct {
-	NatGatewayIP infrav1.PublicIPSpec
-	Name         string
-	Subnet       infrav1.SubnetSpec
-}
-
-// InboundNatSpec defines the specification for an inbound NAT rule.
-type InboundNatSpec struct {
-	Name             string
-	LoadBalancerName string
 }
 
 // SubnetSpec defines the specification for a Subnet.
@@ -108,15 +81,6 @@ type VNetSpec struct {
 	Name          string
 	CIDRs         []string
 	Peerings      []infrav1.VnetPeeringSpec
-}
-
-// VnetPeeringSpec defines the specification for a virtual network peering.
-type VnetPeeringSpec struct {
-	SourceResourceGroup string
-	SourceVnetName      string
-	RemoteResourceGroup string
-	RemoteVnetName      string
-	PeeringName         string
 }
 
 // RoleAssignmentSpec defines the specification for a Role Assignment.
@@ -143,22 +107,6 @@ const (
 type NSGSpec struct {
 	Name          string
 	SecurityRules infrav1.SecurityRules
-}
-
-// VMSpec defines the specification for a Virtual Machine.
-type VMSpec struct {
-	Name                   string
-	Role                   string
-	NICNames               []string
-	SSHKeyData             string
-	Size                   string
-	Zone                   string
-	Identity               infrav1.VMIdentity
-	OSDisk                 infrav1.OSDisk
-	DataDisks              []infrav1.DataDisk
-	UserAssignedIdentities []infrav1.UserAssignedIdentity
-	SpotVMOptions          *infrav1.SpotVMOptions
-	SecurityProfile        *infrav1.SecurityProfile
 }
 
 // BastionSpec defines the specification for the generic bastion feature.
@@ -218,11 +166,6 @@ type PrivateDNSLinkSpec struct {
 	VNetName          string
 	VNetResourceGroup string
 	LinkName          string
-}
-
-// AvailabilitySetSpec defines the specification for an availability set.
-type AvailabilitySetSpec struct {
-	Name string
 }
 
 // ExtensionSpec defines the specification for a VM or VMScaleSet extension.
@@ -459,4 +402,22 @@ type AgentPoolSpec struct {
 
 	// Mode represents mode of an agent pool. Possible values include: 'System', 'User'.
 	Mode string
+
+	//  Maximum number of nodes for auto-scaling
+	MaxCount *int32 `json:"maxCount,omitempty"`
+
+	// Minimum number of nodes for auto-scaling
+	MinCount *int32 `json:"minCount,omitempty"`
+
+	// EnableAutoScaling - Whether to enable auto-scaler
+	EnableAutoScaling *bool `json:"enableAutoScaling,omitempty"`
+
+	// AvailabilityZones represents the Availability zones for nodes in the AgentPool.
+	AvailabilityZones []string
+
+	// MaxPods specifies the kubelet --max-pods configuration for the agent pool.
+	MaxPods *int32 `json:"maxPods,omitempty"`
+
+	// OsDiskType specifies the OS disk type for each node in the pool. Allowed values are 'Ephemeral' and 'Managed'.
+	OsDiskType *string `json:"osDiskType,omitempty"`
 }

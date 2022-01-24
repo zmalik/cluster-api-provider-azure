@@ -432,8 +432,8 @@ func toCloudProviderBackOffConfig(source infrav1.BackOffConfig) BackOffConfig {
 	return backOffConfig
 }
 
-func reconcileAzureSecret(ctx context.Context, log logr.Logger, kubeclient client.Client, owner metav1.OwnerReference, new *corev1.Secret, clusterName string) error {
-	ctx, _, done := tele.StartSpanWithLogger(ctx, "controllers.reconcileAzureSecret")
+func reconcileAzureSecret(ctx context.Context, kubeclient client.Client, owner metav1.OwnerReference, new *corev1.Secret, clusterName string) error {
+	ctx, log, done := tele.StartSpanWithLogger(ctx, "controllers.reconcileAzureSecret")
 	defer done()
 
 	// Fetch previous secret, if it exists
@@ -457,7 +457,7 @@ func reconcileAzureSecret(ctx context.Context, log logr.Logger, kubeclient clien
 
 	tag, exists := old.Labels[clusterName]
 
-	if exists && tag != string(infrav1.ResourceLifecycleOwned) {
+	if !exists || tag != string(infrav1.ResourceLifecycleOwned) {
 		log.V(2).Info("returning early from json reconcile, user provided secret already exists")
 		return nil
 	}
