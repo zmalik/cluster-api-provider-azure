@@ -19,6 +19,7 @@ package agentpools
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/services/containerservice/mgmt/2021-05-01/containerservice"
@@ -32,11 +33,16 @@ import (
 	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
 )
 
+var (
+	customHeaderPrefix = "custom-headers.azure.dev/"
+)
+
 // ManagedMachinePoolScope defines the scope interface for a managed machine pool.
 type ManagedMachinePoolScope interface {
 	azure.ClusterDescriber
 
 	NodeResourceGroup() string
+	AgentPoolAnnotations() map[string]string
 	AgentPoolSpec() azure.AgentPoolSpec
 	SetAgentPoolProviderIDList([]string)
 	SetAgentPoolReplicas(int32)
@@ -66,7 +72,6 @@ func (s *Service) Reconcile(ctx context.Context) error {
 	defer done()
 
 	agentPoolSpec := s.scope.AgentPoolSpec()
-
 	profile := containerservice.AgentPool{
 		ManagedClusterAgentPoolProfileProperties: &containerservice.ManagedClusterAgentPoolProfileProperties{
 			VMSize:              &agentPoolSpec.SKU,
@@ -99,8 +104,11 @@ func (s *Service) Reconcile(ctx context.Context) error {
 	// AKS will populate defaults and read-only values, which we want
 	// to strip/clean to match what we expect.
 	isCreate := azure.ResourceNotFound(err)
+
+	customHeaders := s.getCustomHeaders()
 	if isCreate {
-		err = s.Client.CreateOrUpdate(ctx, agentPoolSpec.ResourceGroup, agentPoolSpec.Cluster, agentPoolSpec.Name, profile)
+		err = s.Client.CreateOrUpdate(ctx, agentPoolSpec.ResourceGroup, agentPoolSpec.Cluster, agentPoolSpec.Name,
+			profile, customHeaders)
 		if err != nil && azure.ResourceNotFound(err) {
 			return azure.WithTransientError(errors.Wrap(err, "agent pool dependent resource does not exist yet"), 20*time.Second)
 		} else if err != nil {
@@ -147,7 +155,8 @@ func (s *Service) Reconcile(ctx context.Context) error {
 		diff := cmp.Diff(normalizedProfile, existingProfile)
 		if diff != "" {
 			klog.V(2).Info(fmt.Sprintf("Update required (+new -old):\n%s", diff))
-			err = s.Client.CreateOrUpdate(ctx, agentPoolSpec.ResourceGroup, agentPoolSpec.Cluster, agentPoolSpec.Name, profile)
+			err = s.Client.CreateOrUpdate(ctx, agentPoolSpec.ResourceGroup, agentPoolSpec.Cluster, agentPoolSpec.Name,
+				profile, customHeaders)
 			if err != nil {
 				return errors.Wrap(err, "failed to create or update agent pool")
 			}
@@ -157,6 +166,17 @@ func (s *Service) Reconcile(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// get custom headers to pass to agent pool client from agent pool annotations.
+func (s *Service) getCustomHeaders() map[string]string {
+	var result = map[string]string{}
+	for key, value := range s.scope.AgentPoolAnnotations() {
+		if strings.HasPrefix(key, customHeaderPrefix) {
+			result[strings.TrimPrefix(key, customHeaderPrefix)] = value
+		}
+	}
+	return result
 }
 
 // Delete deletes the virtual network with the provided name.
