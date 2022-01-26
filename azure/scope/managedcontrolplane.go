@@ -120,10 +120,6 @@ type ManagedControlPlaneScope struct {
 	AllNodePools []infrav1exp.AzureManagedMachinePool
 }
 
-func (s *ManagedControlPlaneScope) AgentPoolAnnotations() map[string]string {
-	return s.InfraMachinePool.Annotations
-}
-
 // ResourceGroup returns the managed control plane's resource group.
 func (s *ManagedControlPlaneScope) ResourceGroup() string {
 	if s.ControlPlane == nil {
@@ -368,6 +364,10 @@ func (s *ManagedControlPlaneScope) FailureDomains() []string {
 	return []string{}
 }
 
+func (s *ManagedControlPlaneScope) ManagedClusterAnnotations() map[string]string {
+	return s.ControlPlane.Annotations
+}
+
 // ManagedClusterSpec returns the managed cluster spec.
 func (s *ManagedControlPlaneScope) ManagedClusterSpec() (azure.ManagedClusterSpec, error) {
 	decodedSSHPublicKey, err := base64.StdEncoding.DecodeString(s.ControlPlane.Spec.SSHPublicKey)
@@ -563,6 +563,10 @@ func (s *ManagedControlPlaneScope) GetAgentPoolSpecs(ctx context.Context) ([]azu
 	}
 
 	return ammps, nil
+}
+
+func (s *ManagedControlPlaneScope) AgentPoolAnnotations() map[string]string {
+	return s.InfraMachinePool.Annotations
 }
 
 // AgentPoolSpec returns an azure.AgentPoolSpec for currently reconciled AzureManagedMachinePool.

@@ -33,10 +33,6 @@ import (
 	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
 )
 
-var (
-	customHeaderPrefix = "custom-headers.azure.dev/"
-)
-
 // ManagedMachinePoolScope defines the scope interface for a managed machine pool.
 type ManagedMachinePoolScope interface {
 	azure.ClusterDescriber
@@ -172,8 +168,8 @@ func (s *Service) Reconcile(ctx context.Context) error {
 func (s *Service) getCustomHeaders() map[string]string {
 	var result = map[string]string{}
 	for key, value := range s.scope.AgentPoolAnnotations() {
-		if strings.HasPrefix(key, customHeaderPrefix) {
-			result[strings.TrimPrefix(key, customHeaderPrefix)] = value
+		if strings.HasPrefix(key, azure.CustomHeaderPrefix) {
+			result[strings.TrimPrefix(key, azure.CustomHeaderPrefix)] = value
 		}
 	}
 	return result
