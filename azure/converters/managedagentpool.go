@@ -43,7 +43,7 @@ func AgentPoolToManagedClusterAgentPoolProfile(pool azure.AgentPoolSpec) contain
 		OsDiskType:          containerservice.OSDiskType(to.String(pool.OsDiskType)),
 		NodeLabels:          pool.NodeLabels,
 		EnableUltraSSD:      pool.EnableUltraSSD,
-		ScaleSetPriority:    containerservice.ScaleSetPriority(to.String(pool.ScaleSetPriority)),
+		ScaleSetPriority:    containerservice.ScaleSetPriority(pool.ScaleSetPriority),
 		Tags:                pool.Tags,
 	}
 }
@@ -69,7 +69,7 @@ func AgentPoolToContainerServiceAgentPool(pool azure.AgentPoolSpec) containerser
 			OsDiskType:          containerservice.OSDiskType(to.String(pool.OsDiskType)),
 			NodeLabels:          pool.NodeLabels,
 			EnableUltraSSD:      pool.EnableUltraSSD,
-			ScaleSetPriority:    containerservice.ScaleSetPriority(to.String(pool.ScaleSetPriority)),
+			ScaleSetPriority:    containerservice.ScaleSetPriority(pool.ScaleSetPriority),
 			Tags:                pool.Tags,
 		},
 	}

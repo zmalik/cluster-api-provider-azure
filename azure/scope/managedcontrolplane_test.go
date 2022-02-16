@@ -207,7 +207,7 @@ func TestManagedControlPlaneScope_ScaleSetPriority(t *testing.T) {
 				Mode:             "System",
 				Cluster:          "cluster1",
 				Replicas:         1,
-				ScaleSetPriority: to.StringPtr("Spot"),
+				ScaleSetPriority: "Spot",
 				VnetSubnetID:     "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups//providers/Microsoft.Network/virtualNetworks//subnets/",
 			},
 		},

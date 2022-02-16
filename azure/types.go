@@ -356,7 +356,7 @@ type AgentPoolSpec struct {
 	OsDiskType *string `json:"osDiskType,omitempty"`
 
 	// ScaleSetPriority specifies the virtual machine scale set priority. Default to regular. Possible values include: 'Spot', 'Regular'
-	ScaleSetPriority *string `json:"scaleSetPriority,omitempty"`
+	ScaleSetPriority string `json:"scaleSetPriority,omitempty"`
 
 	// Tags is a set of tags to add to this AgentPool.
 	Tags map[string]*string
