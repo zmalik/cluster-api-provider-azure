@@ -100,6 +100,26 @@ func computeDiffOfNormalizedClusters(managedCluster containerservice.ManagedClus
 		}
 	}
 
+	if managedCluster.AddonProfiles != nil {
+		propertiesNormalized.AddonProfiles = map[string]*containerservice.ManagedClusterAddonProfile{}
+		for k, v := range managedCluster.AddonProfiles {
+			propertiesNormalized.AddonProfiles[k] = &containerservice.ManagedClusterAddonProfile{
+				Enabled: v.Enabled,
+				Config:  v.Config,
+			}
+		}
+	}
+
+	if existingMC.AddonProfiles != nil {
+		existingMCPropertiesNormalized.AddonProfiles = map[string]*containerservice.ManagedClusterAddonProfile{}
+		for k, v := range existingMC.AddonProfiles {
+			existingMCPropertiesNormalized.AddonProfiles[k] = &containerservice.ManagedClusterAddonProfile{
+				Enabled: v.Enabled,
+				Config:  v.Config,
+			}
+		}
+	}
+
 	if managedCluster.NetworkProfile != nil {
 		propertiesNormalized.NetworkProfile.LoadBalancerProfile = managedCluster.NetworkProfile.LoadBalancerProfile
 	}
@@ -258,6 +278,8 @@ func (s *Service) Reconcile(ctx context.Context) error {
 		}
 	}
 
+	handleAddonProfiles(managedCluster, managedClusterSpec)
+
 	if managedClusterSpec.SKU != nil {
 		tierName := containerservice.ManagedClusterSKUTier(managedClusterSpec.SKU.Tier)
 		managedCluster.Sku = &containerservice.ManagedClusterSKU{
@@ -351,6 +373,19 @@ func (s *Service) Reconcile(ctx context.Context) error {
 	s.Scope.SetKubeConfigData(kubeConfigData)
 
 	return nil
+}
+
+func handleAddonProfiles(managedCluster containerservice.ManagedCluster, spec azure.ManagedClusterSpec) {
+	for i := range spec.AddonProfiles {
+		if managedCluster.AddonProfiles == nil {
+			managedCluster.AddonProfiles = map[string]*containerservice.ManagedClusterAddonProfile{}
+		}
+		addonProfile := spec.AddonProfiles[i]
+		managedCluster.AddonProfiles[addonProfile.Name] = &containerservice.ManagedClusterAddonProfile{
+			Enabled: &addonProfile.Enabled,
+			Config:  *to.StringMapPtr(addonProfile.Config),
+		}
+	}
 }
 
 // Delete deletes the managed cluster.
