@@ -368,6 +368,10 @@ func (s *ManagedControlPlaneScope) FailureDomains() []string {
 	return []string{}
 }
 
+func (s *ManagedControlPlaneScope) ManagedClusterAnnotations() map[string]string {
+	return s.ControlPlane.Annotations
+}
+
 // ManagedClusterSpec returns the managed cluster spec.
 func (s *ManagedControlPlaneScope) ManagedClusterSpec() (azure.ManagedClusterSpec, error) {
 	decodedSSHPublicKey, err := base64.StdEncoding.DecodeString(s.ControlPlane.Spec.SSHPublicKey)
@@ -532,6 +536,10 @@ func (s *ManagedControlPlaneScope) GetAllAgentPoolSpecs(ctx context.Context) ([]
 	}
 
 	return ammps, nil
+}
+
+func (s *ManagedControlPlaneScope) AgentPoolAnnotations() map[string]string {
+	return s.InfraMachinePool.Annotations
 }
 
 // AgentPoolSpec returns an azure.AgentPoolSpec for currently reconciled AzureManagedMachinePool.
