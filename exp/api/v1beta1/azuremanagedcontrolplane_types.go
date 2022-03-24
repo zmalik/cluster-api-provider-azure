@@ -233,6 +233,10 @@ type AzureManagedControlPlaneStatus struct {
 	// next reconciliation loop.
 	// +optional
 	LongRunningOperationStates infrav1.Futures `json:"longRunningOperationStates,omitempty"`
+
+	// Version defines current version of the AzureManagedControlPlane.
+	// +optional
+	Version string `json:"version,omitempty"`
 }
 
 // +kubebuilder:object:root=true

@@ -156,6 +156,10 @@ type AzureManagedMachinePoolStatus struct {
 	// next reconciliation loop.
 	// +optional
 	LongRunningOperationStates infrav1.Futures `json:"longRunningOperationStates,omitempty"`
+
+	// Version defines current version of the AzureManagedMachinePool.
+	// +optional
+	Version string `json:"version,omitempty"`
 }
 
 // +kubebuilder:object:root=true

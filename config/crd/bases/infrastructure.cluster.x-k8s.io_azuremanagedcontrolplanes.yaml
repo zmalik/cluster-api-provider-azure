@@ -849,6 +849,9 @@ spec:
               ready:
                 description: Ready is true when the provider resource is ready.
                 type: boolean
+              version:
+                description: Version defines current version of the AzureManagedControlPlane.
+                type: string
             type: object
         type: object
     served: true

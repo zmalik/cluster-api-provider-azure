@@ -321,6 +321,18 @@ func (mr *MockManagedClusterScopeMockRecorder) SetControlPlaneEndpoint(arg0 inte
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetControlPlaneEndpoint", reflect.TypeOf((*MockManagedClusterScope)(nil).SetControlPlaneEndpoint), arg0)
 }
 
+// SetControlPlaneKubernetesVersion mocks base method.
+func (m *MockManagedClusterScope) SetControlPlaneKubernetesVersion(version string) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetControlPlaneKubernetesVersion", version)
+}
+
+// SetControlPlaneKubernetesVersion indicates an expected call of SetControlPlaneKubernetesVersion.
+func (mr *MockManagedClusterScopeMockRecorder) SetControlPlaneKubernetesVersion(version interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetControlPlaneKubernetesVersion", reflect.TypeOf((*MockManagedClusterScope)(nil).SetControlPlaneKubernetesVersion), version)
+}
+
 // SetKubeConfigData mocks base method.
 func (m *MockManagedClusterScope) SetKubeConfigData(arg0 []byte) {
 	m.ctrl.T.Helper()

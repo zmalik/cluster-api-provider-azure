@@ -657,6 +657,11 @@ func (s *ManagedControlPlaneScope) SetAgentPoolReplicas(replicas int32) {
 	s.InfraMachinePool.Status.Replicas = replicas
 }
 
+// SetAgentPoolKubernetesVersion sets the Kubernetes version of agent pool.
+func (s *ManagedControlPlaneScope) SetAgentPoolKubernetesVersion(version string) {
+	s.InfraMachinePool.Status.Version = version
+}
+
 // SetAgentPoolReady sets the flag that indicates if the agent pool is ready or not.
 func (s *ManagedControlPlaneScope) SetAgentPoolReady(ready bool) {
 	s.InfraMachinePool.Status.Ready = ready
@@ -665,6 +670,11 @@ func (s *ManagedControlPlaneScope) SetAgentPoolReady(ready bool) {
 // SetControlPlaneEndpoint sets a control plane endpoint.
 func (s *ManagedControlPlaneScope) SetControlPlaneEndpoint(endpoint clusterv1.APIEndpoint) {
 	s.ControlPlane.Spec.ControlPlaneEndpoint = endpoint
+}
+
+// SetControlPlaneKubernetesVersion sets the Kubernetes version of the control plane.
+func (s *ManagedControlPlaneScope) SetControlPlaneKubernetesVersion(version string) {
+	s.ControlPlane.Status.Version = version
 }
 
 // MakeEmptyKubeConfigSecret creates an empty secret object that is used for storing kubeconfig secret data.

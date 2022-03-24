@@ -47,11 +47,13 @@ func TestReconcile(t *testing.T) {
 				m.CreateOrUpdate(gomockinternal.AContext(), "my-rg", "my-managedcluster", gomock.Any(), map[string]string{"myFeature": "true"}).Return(containerservice.ManagedCluster{ManagedClusterProperties: &containerservice.ManagedClusterProperties{
 					Fqdn:              pointer.String("my-managedcluster-fqdn"),
 					ProvisioningState: &provisioningstate,
+					KubernetesVersion: pointer.String("1.22.4"),
 				}}, nil)
 				m.Get(gomockinternal.AContext(), "my-rg", "my-managedcluster").Return(containerservice.ManagedCluster{ManagedClusterProperties: &containerservice.ManagedClusterProperties{
 					Fqdn:              pointer.String("my-managedcluster-fqdn"),
 					ProvisioningState: &provisioningstate,
 					NetworkProfile:    &containerservice.NetworkProfile{},
+					KubernetesVersion: pointer.String("1.22.4"),
 				}}, nil)
 				m.GetCredentials(gomockinternal.AContext(), "my-rg", "my-managedcluster").Times(1)
 				s.ClusterName().AnyTimes().Return("my-managedcluster")
@@ -64,6 +66,7 @@ func TestReconcile(t *testing.T) {
 					ResourceGroupName: "my-rg",
 				}, nil)
 				s.SetControlPlaneEndpoint(gomock.Any()).Times(1)
+				s.SetControlPlaneKubernetesVersion(gomock.Eq("v1.22.4")).Times(1)
 				s.SetKubeConfigData(gomock.Any()).Times(1)
 			},
 		},
@@ -74,6 +77,7 @@ func TestReconcile(t *testing.T) {
 			expect: func(m *mock_managedclusters.MockClientMockRecorder, provisioningstate string, s *mock_managedclusters.MockManagedClusterScopeMockRecorder) {
 				m.Get(gomockinternal.AContext(), "my-rg", "my-managedcluster").Return(containerservice.ManagedCluster{ManagedClusterProperties: &containerservice.ManagedClusterProperties{
 					ProvisioningState: &provisioningstate,
+					KubernetesVersion: pointer.String("1.22.4"),
 				}}, nil)
 				s.ClusterName().AnyTimes().Return("my-managedcluster")
 				s.ResourceGroup().AnyTimes().Return("my-rg")
@@ -128,6 +132,7 @@ func TestReconcile(t *testing.T) {
 				m.CreateOrUpdate(gomockinternal.AContext(), "my-rg", "my-managedcluster", gomock.Any(), gomock.Any()).Return(containerservice.ManagedCluster{ManagedClusterProperties: &containerservice.ManagedClusterProperties{
 					Fqdn:              pointer.String("my-managedcluster-fqdn"),
 					ProvisioningState: pointer.String("Succeeded"),
+					KubernetesVersion: pointer.String("1.22.4"),
 				}}, nil).Times(1)
 				m.Get(gomockinternal.AContext(), "my-rg", "my-managedcluster").Return(containerservice.ManagedCluster{}, autorest.NewErrorWithResponse("", "", &http.Response{StatusCode: 404}, "Not Found"))
 				m.GetCredentials(gomockinternal.AContext(), "my-rg", "my-managedcluster").Times(1)
@@ -150,6 +155,7 @@ func TestReconcile(t *testing.T) {
 					Host: "my-managedcluster-fqdn",
 					Port: 443,
 				})).Times(1)
+				s.SetControlPlaneKubernetesVersion(gomock.Eq("v1.22.4")).Times(1)
 				s.SetKubeConfigData(gomock.Any()).Times(1)
 			},
 		},
@@ -184,6 +190,7 @@ func TestReconcile(t *testing.T) {
 					ManagedClusterProperties: &containerservice.ManagedClusterProperties{
 						Fqdn:              pointer.String("my-managedcluster-fqdn"),
 						ProvisioningState: pointer.String("Succeeded"),
+						KubernetesVersion: pointer.String("1.22.4"),
 					},
 				}, nil)
 				m.Get(gomockinternal.AContext(), "my-rg", "my-managedcluster").Return(containerservice.ManagedCluster{
@@ -191,6 +198,7 @@ func TestReconcile(t *testing.T) {
 						Fqdn:              pointer.String("my-managedcluster-fqdn"),
 						ProvisioningState: pointer.String("Succeeded"),
 						NetworkProfile:    &containerservice.NetworkProfile{},
+						KubernetesVersion: pointer.String("1.22.4"),
 					},
 				}, nil).Times(1)
 				m.GetCredentials(gomockinternal.AContext(), "my-rg", "my-managedcluster").Times(1)
@@ -213,6 +221,7 @@ func TestReconcile(t *testing.T) {
 					Host: "my-managedcluster-fqdn",
 					Port: 443,
 				})).Times(1)
+				s.SetControlPlaneKubernetesVersion(gomock.Eq("v1.22.4")).Times(1)
 				s.SetKubeConfigData(gomock.Any()).Times(1)
 			},
 		},
@@ -249,6 +258,7 @@ func TestReconcile(t *testing.T) {
 					Host: "my-managedcluster-fqdn",
 					Port: 443,
 				})).Times(1)
+				s.SetControlPlaneKubernetesVersion(gomock.Eq("v1.1")).Times(1)
 				s.SetKubeConfigData(gomock.Any()).Times(1)
 			},
 		},

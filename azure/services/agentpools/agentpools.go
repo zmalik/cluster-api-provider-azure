@@ -25,7 +25,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 	"k8s.io/klog/v2"
-
 	infrav1alpha4 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/converters"
@@ -45,6 +44,7 @@ type ManagedMachinePoolScope interface {
 	SetAgentPoolProviderIDList([]string)
 	SetAgentPoolReplicas(int32)
 	SetAgentPoolReady(bool)
+	SetAgentPoolKubernetesVersion(string)
 }
 
 // Service provides operations on Azure resources.
@@ -147,7 +147,14 @@ func (s *Service) Reconcile(ctx context.Context) error {
 		}
 	}
 
+	s.updateManagedMachinePoolKubernetesVersion(existingPool)
 	return nil
+}
+
+func (s *Service) updateManagedMachinePoolKubernetesVersion(existingPool containerservice.AgentPool) {
+	if existingPool.ManagedClusterAgentPoolProfileProperties != nil && existingPool.ManagedClusterAgentPoolProfileProperties.OrchestratorVersion != nil {
+		s.scope.SetAgentPoolKubernetesVersion(*existingPool.ManagedClusterAgentPoolProfileProperties.OrchestratorVersion)
+	}
 }
 
 // Delete deletes the virtual network with the provided name.

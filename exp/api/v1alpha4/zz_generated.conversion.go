@@ -1090,6 +1090,7 @@ func autoConvert_v1beta1_AzureManagedControlPlaneStatus_To_v1alpha4_AzureManaged
 	out.Initialized = in.Initialized
 	// WARNING: in.Conditions requires manual conversion: does not exist in peer-type
 	out.LongRunningOperationStates = *(*clusterapiproviderazureapiv1alpha4.Futures)(unsafe.Pointer(&in.LongRunningOperationStates))
+	// WARNING: in.Version requires manual conversion: does not exist in peer-type
 	return nil
 }
 
@@ -1219,6 +1220,7 @@ func autoConvert_v1beta1_AzureManagedMachinePoolStatus_To_v1alpha4_AzureManagedM
 	out.ErrorMessage = (*string)(unsafe.Pointer(in.ErrorMessage))
 	// WARNING: in.Conditions requires manual conversion: does not exist in peer-type
 	// WARNING: in.LongRunningOperationStates requires manual conversion: does not exist in peer-type
+	// WARNING: in.Version requires manual conversion: does not exist in peer-type
 	return nil
 }
 

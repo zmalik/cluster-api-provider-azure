@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/services/containerservice/mgmt/2021-05-01/containerservice"
@@ -50,6 +51,7 @@ type ManagedClusterScope interface {
 	ManagedClusterSpec() (azure.ManagedClusterSpec, error)
 	GetAllAgentPoolSpecs(ctx context.Context) ([]azure.AgentPoolSpec, error)
 	SetControlPlaneEndpoint(clusterv1.APIEndpoint)
+	SetControlPlaneKubernetesVersion(version string)
 	MakeEmptyKubeConfigSecret() corev1.Secret
 	GetKubeConfigData() []byte
 	SetKubeConfigData([]byte)
@@ -376,8 +378,18 @@ func (s *Service) Reconcile(ctx context.Context) error {
 		return errors.Wrap(err, "failed to get credentials for managed cluster")
 	}
 	s.Scope.SetKubeConfigData(kubeConfigData)
-
+	s.updateControlPlaneKubernetesVersion(result)
 	return nil
+}
+
+func (s *Service) updateControlPlaneKubernetesVersion(managedCluster containerservice.ManagedCluster) {
+	if managedCluster.ManagedClusterProperties != nil && managedCluster.ManagedClusterProperties.KubernetesVersion != nil {
+		ver := *managedCluster.ManagedClusterProperties.KubernetesVersion
+		if !strings.HasPrefix(ver, "v") {
+			ver = "v" + ver
+		}
+		s.Scope.SetControlPlaneKubernetesVersion(ver)
+	}
 }
 
 func handleAddonProfiles(managedCluster containerservice.ManagedCluster, spec azure.ManagedClusterSpec) {

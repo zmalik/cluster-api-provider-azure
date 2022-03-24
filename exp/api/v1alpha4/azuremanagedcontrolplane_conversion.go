@@ -38,6 +38,7 @@ func (src *AzureManagedControlPlane) ConvertTo(dstRaw conversion.Hub) error {
 
 	dst.Spec.AddonProfiles = restored.Spec.AddonProfiles
 	dst.Status.Conditions = restored.Status.Conditions
+	dst.Status.Version = restored.Status.Version
 
 	return nil
 }
