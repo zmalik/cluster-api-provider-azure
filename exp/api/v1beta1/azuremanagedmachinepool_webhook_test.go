@@ -47,7 +47,6 @@ func TestAzureManagedMachinePoolDefaultingWebhook(t *testing.T) {
 	g.Expect(ok).To(BeTrue())
 	g.Expect(val).To(Equal("System"))
 	g.Expect(*ammp.Spec.Name).To(Equal("fooName"))
-	g.Expect(*ammp.Spec.ScaleSetPriority).To(Equal("Regular"))
 
 	t.Logf("Testing ammp defaulting webhook with empty string name specified in Spec")
 	emptyName := ""
