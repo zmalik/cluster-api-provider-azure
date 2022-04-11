@@ -45,6 +45,7 @@ func AgentPoolToManagedClusterAgentPoolProfile(pool azure.AgentPoolSpec) contain
 		EnableUltraSSD:      pool.EnableUltraSSD,
 		ScaleSetPriority:    containerservice.ScaleSetPriority(pool.ScaleSetPriority),
 		Tags:                pool.Tags,
+		EnableNodePublicIP:  pool.EnableNodePublicIP,
 	}
 }
 
@@ -71,6 +72,7 @@ func AgentPoolToContainerServiceAgentPool(pool azure.AgentPoolSpec) containerser
 			EnableUltraSSD:      pool.EnableUltraSSD,
 			ScaleSetPriority:    containerservice.ScaleSetPriority(pool.ScaleSetPriority),
 			Tags:                pool.Tags,
+			EnableNodePublicIP:  pool.EnableNodePublicIP,
 		},
 	}
 }

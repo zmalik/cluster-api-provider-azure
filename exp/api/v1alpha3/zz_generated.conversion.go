@@ -892,6 +892,7 @@ func autoConvert_v1beta1_AzureManagedMachinePoolSpec_To_v1alpha3_AzureManagedMac
 	// WARNING: in.OsDiskType requires manual conversion: does not exist in peer-type
 	// WARNING: in.EnableUltraSSD requires manual conversion: does not exist in peer-type
 	// WARNING: in.ScaleSetPriority requires manual conversion: does not exist in peer-type
+	// WARNING: in.EnabledNodePublicIP requires manual conversion: does not exist in peer-type
 	return nil
 }
 

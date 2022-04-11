@@ -607,12 +607,13 @@ func buildAgentPoolSpec(managedControlPlane *infrav1exp.AzureManagedControlPlane
 			managedControlPlane.Spec.VirtualNetwork.Name,
 			managedControlPlane.Spec.VirtualNetwork.Subnet.Name,
 		),
-		Mode:              managedMachinePool.Spec.Mode,
-		MaxPods:           managedMachinePool.Spec.MaxPods,
-		AvailabilityZones: managedMachinePool.Spec.AvailabilityZones,
-		OsDiskType:        managedMachinePool.Spec.OsDiskType,
-		EnableUltraSSD:    managedMachinePool.Spec.EnableUltraSSD,
-		Tags:              managedMachinePool.Spec.AdditionalTags,
+		Mode:               managedMachinePool.Spec.Mode,
+		MaxPods:            managedMachinePool.Spec.MaxPods,
+		AvailabilityZones:  managedMachinePool.Spec.AvailabilityZones,
+		OsDiskType:         managedMachinePool.Spec.OsDiskType,
+		EnableUltraSSD:     managedMachinePool.Spec.EnableUltraSSD,
+		Tags:               managedMachinePool.Spec.AdditionalTags,
+		EnableNodePublicIP: managedMachinePool.Spec.EnabledNodePublicIP,
 	}
 
 	if managedMachinePool.Spec.ScaleSetPriority != nil {

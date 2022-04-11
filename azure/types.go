@@ -360,4 +360,7 @@ type AgentPoolSpec struct {
 
 	// Tags is a set of tags to add to this AgentPool.
 	Tags map[string]*string
+
+	// EnableNodePublicIP enables public IP for nodes
+	EnableNodePublicIP *bool
 }

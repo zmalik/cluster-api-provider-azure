@@ -102,6 +102,10 @@ type AzureManagedMachinePoolSpec struct {
 	// +kubebuilder:validation:Enum=Regular;Spot
 	// +optional
 	ScaleSetPriority *string `json:"scaleSetPriority,omitempty"`
+
+	// EnabledNodePublicIP  enables public IP for nodes present in the agentpool.
+	// +optional
+	EnabledNodePublicIP *bool `json:"enabledNodePublicIP,omitempty"`
 }
 
 // ManagedMachinePoolScaling specifies scaling options.

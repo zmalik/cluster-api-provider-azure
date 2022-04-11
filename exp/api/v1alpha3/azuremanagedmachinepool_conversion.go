@@ -46,6 +46,7 @@ func (src *AzureManagedMachinePool) ConvertTo(dstRaw conversion.Hub) error {
 	dst.Spec.EnableUltraSSD = restored.Spec.EnableUltraSSD
 	dst.Spec.ScaleSetPriority = restored.Spec.ScaleSetPriority
 	dst.Spec.AdditionalTags = restored.Spec.AdditionalTags
+	dst.Spec.EnabledNodePublicIP = restored.Spec.EnabledNodePublicIP
 
 	dst.Status.LongRunningOperationStates = restored.Status.LongRunningOperationStates
 	dst.Status.Conditions = restored.Status.Conditions

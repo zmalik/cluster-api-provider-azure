@@ -211,6 +211,10 @@ spec:
                 description: EnableUltraSSD enables the storage type UltraSSD_LRS
                   for the agent pool.
                 type: boolean
+              enabledNodePublicIP:
+                description: EnabledNodePublicIP  enables public IP for nodes present
+                  in the agentpool.
+                type: boolean
               maxPods:
                 description: MaxPods specifies the kubelet --max-pods configuration
                   for the node pool.
