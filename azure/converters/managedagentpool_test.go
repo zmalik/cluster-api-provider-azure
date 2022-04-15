@@ -50,7 +50,8 @@ func Test_AgentPoolToManagedClusterAgentPoolProfile(t *testing.T) {
 				NodeLabels: map[string]*string{
 					"custom": to.StringPtr("default"),
 				},
-				Name: "agentpool1",
+				Name:                 "agentpool1",
+				NodePublicIPPrefixID: to.StringPtr("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-123/providers/Microsoft.Network/publicIPPrefixes/prefix-123"),
 			},
 
 			expect: func(g *GomegaWithT, result containerservice.ManagedClusterAgentPoolProfile) {
@@ -74,6 +75,7 @@ func Test_AgentPoolToManagedClusterAgentPoolProfile(t *testing.T) {
 					NodeLabels: map[string]*string{
 						"custom": to.StringPtr("default"),
 					},
+					NodePublicIPPrefixID: to.StringPtr("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-123/providers/Microsoft.Network/publicIPPrefixes/prefix-123"),
 				}))
 			},
 		},
@@ -90,7 +92,7 @@ func Test_AgentPoolToManagedClusterAgentPoolProfile(t *testing.T) {
 	}
 }
 
-func Test_AgentPoolToAgentPoolToContainerServiceAgentPool(t *testing.T) {
+func Test_AgentPoolToContainerServiceAgentPool(t *testing.T) {
 	cases := []struct {
 		name   string
 		pool   azure.AgentPoolSpec
@@ -116,6 +118,7 @@ func Test_AgentPoolToAgentPoolToContainerServiceAgentPool(t *testing.T) {
 				NodeLabels: map[string]*string{
 					"custom": to.StringPtr("default"),
 				},
+				NodePublicIPPrefixID: to.StringPtr("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-123/providers/Microsoft.Network/publicIPPrefixes/prefix-123"),
 			},
 
 			expect: func(g *GomegaWithT, result containerservice.AgentPool) {
@@ -139,6 +142,7 @@ func Test_AgentPoolToAgentPoolToContainerServiceAgentPool(t *testing.T) {
 						NodeLabels: map[string]*string{
 							"custom": to.StringPtr("default"),
 						},
+						NodePublicIPPrefixID: to.StringPtr("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-123/providers/Microsoft.Network/publicIPPrefixes/prefix-123"),
 					},
 				}))
 			},

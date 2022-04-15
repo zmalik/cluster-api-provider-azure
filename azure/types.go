@@ -363,4 +363,7 @@ type AgentPoolSpec struct {
 
 	// EnableNodePublicIP enables public IP for nodes
 	EnableNodePublicIP *bool
+
+	// NodePublicIPPrefixID is the public IP Prefix ID. VM nodes use IPs assigned from this Public IP Prefix.
+	NodePublicIPPrefixID *string `json:"nodePublicIPPrefixID,omitempty"`
 }

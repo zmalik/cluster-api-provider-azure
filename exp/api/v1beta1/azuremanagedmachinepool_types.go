@@ -106,6 +106,10 @@ type AzureManagedMachinePoolSpec struct {
 	// EnabledNodePublicIP  enables public IP for nodes present in the agentpool.
 	// +optional
 	EnabledNodePublicIP *bool `json:"enabledNodePublicIP,omitempty"`
+
+	// NodePublicIPPrefixID is the public IP Prefix ID. VM nodes use IPs assigned from this Public IP Prefix.
+	// +optional
+	NodePublicIPPrefixID *string `json:"nodePublicIPPrefixID,omitempty"`
 }
 
 // ManagedMachinePoolScaling specifies scaling options.
