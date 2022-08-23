@@ -2,7 +2,7 @@ name: Docker Image CI
 
 on:
   push:
-    branches: [ final-version ]
+    branches: [ zm/whatever ]
   pull_request:
     branches: [ final-version ]
 
