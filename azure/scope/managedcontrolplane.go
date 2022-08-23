@@ -630,7 +630,7 @@ func buildAgentPoolSpec(managedControlPlane *infrav1exp.AzureManagedControlPlane
 		for _, t := range managedMachinePool.Spec.Taints {
 			nodeTaints = append(nodeTaints, fmt.Sprintf("%s=%s:%s", t.Key, t.Value, t.Effect))
 		}
-		agentPoolSpec.NodeTaints = nodeTaints
+		agentPoolSpec.NodeTaints = &nodeTaints
 	}
 
 	if managedMachinePool.Spec.Scaling != nil {

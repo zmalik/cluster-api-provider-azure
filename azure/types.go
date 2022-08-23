@@ -337,7 +337,7 @@ type AgentPoolSpec struct {
 	NodeLabels map[string]*string `json:"nodeLabels,omitempty"`
 
 	// NodeTaints specifies the taints for nodes present in this agent pool.
-	NodeTaints []string `json:"nodeTaints,omitempty"`
+	NodeTaints *[]string `json:"nodeTaints,omitempty"`
 
 	// EnableAutoScaling - Whether to enable auto-scaler
 	EnableAutoScaling *bool `json:"enableAutoScaling,omitempty"`
