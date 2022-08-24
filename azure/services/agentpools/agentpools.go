@@ -106,6 +106,7 @@ func (s *Service) Reconcile(ctx context.Context) error {
 		}
 
 		taints := mergeTaints(existingPool.NodeTaints, profile.NodeTaints)
+		labels := mergeLabels(existingPool.NodeLabels, profile.NodeLabels)
 		// Normalize individual agent pools to diff in case we need to update
 		existingProfile := containerservice.AgentPool{
 			ManagedClusterAgentPoolProfileProperties: &containerservice.ManagedClusterAgentPoolProfileProperties{
@@ -128,7 +129,7 @@ func (s *Service) Reconcile(ctx context.Context) error {
 				EnableAutoScaling:   profile.EnableAutoScaling,
 				MinCount:            profile.MinCount,
 				MaxCount:            profile.MaxCount,
-				NodeLabels:          profile.NodeLabels,
+				NodeLabels:          labels,
 				NodeTaints:          taints,
 			},
 		}
@@ -155,6 +156,21 @@ func (s *Service) Reconcile(ctx context.Context) error {
 
 	s.updateManagedMachinePoolKubernetesVersion(existingPool)
 	return nil
+}
+
+func mergeLabels(labels map[string]*string, labels2 map[string]*string) map[string]*string {
+	if labels == nil && labels2 == nil {
+		return nil
+	}
+	labelsMap := make(map[string]*string)
+	for k, v := range labels {
+		labelsMap[k] = v
+	}
+
+	for k, v := range labels2 {
+		labelsMap[k] = v
+	}
+	return labelsMap
 }
 
 func (s *Service) updateManagedMachinePoolKubernetesVersion(existingPool containerservice.AgentPool) {
