@@ -19,6 +19,7 @@ package agentpools
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/services/containerservice/mgmt/2021-05-01/containerservice"
@@ -104,6 +105,7 @@ func (s *Service) Reconcile(ctx context.Context) error {
 			return azure.WithTransientError(errors.New(msg), 20*time.Second)
 		}
 
+		taints := mergeTaints(existingPool.NodeTaints, profile.NodeTaints)
 		// Normalize individual agent pools to diff in case we need to update
 		existingProfile := containerservice.AgentPool{
 			ManagedClusterAgentPoolProfileProperties: &containerservice.ManagedClusterAgentPoolProfileProperties{
@@ -113,7 +115,7 @@ func (s *Service) Reconcile(ctx context.Context) error {
 				EnableAutoScaling:   existingPool.EnableAutoScaling,
 				MinCount:            existingPool.MinCount,
 				MaxCount:            existingPool.MaxCount,
-				NodeTaints:          existingPool.NodeTaints,
+				NodeTaints:          sortTaints(existingPool.NodeTaints),
 				NodeLabels:          existingPool.NodeLabels,
 			},
 		}
@@ -126,8 +128,8 @@ func (s *Service) Reconcile(ctx context.Context) error {
 				EnableAutoScaling:   profile.EnableAutoScaling,
 				MinCount:            profile.MinCount,
 				MaxCount:            profile.MaxCount,
-				NodeTaints:          profile.NodeTaints,
 				NodeLabels:          profile.NodeLabels,
+				NodeTaints:          taints,
 			},
 		}
 
@@ -138,7 +140,7 @@ func (s *Service) Reconcile(ctx context.Context) error {
 		}
 
 		// Diff and check if we require an update
-		diff := cmp.Diff(normalizedProfile, existingProfile)
+		diff := cmp.Diff(existingProfile, normalizedProfile)
 		if diff != "" {
 			klog.V(2).Info(fmt.Sprintf("Update required (+new -old):\n%s", diff))
 			err = s.Client.CreateOrUpdate(ctx, agentPoolSpec.ResourceGroup, agentPoolSpec.Cluster, agentPoolSpec.Name,
@@ -159,6 +161,34 @@ func (s *Service) updateManagedMachinePoolKubernetesVersion(existingPool contain
 	if existingPool.ManagedClusterAgentPoolProfileProperties != nil && existingPool.ManagedClusterAgentPoolProfileProperties.OrchestratorVersion != nil {
 		s.scope.SetAgentPoolKubernetesVersion(*existingPool.ManagedClusterAgentPoolProfileProperties.OrchestratorVersion)
 	}
+}
+
+func mergeTaints(taints *[]string, taints2 *[]string) *[]string {
+	if taints == nil && taints2 == nil {
+		return nil
+	}
+	taintsMap := make(map[string]bool)
+	for _, taint := range *taints {
+		taintsMap[taint] = true
+	}
+
+	for _, taint := range *taints2 {
+		taintsMap[taint] = true
+	}
+
+	mergedTaints := make([]string, 0)
+	for k, _ := range taintsMap {
+		mergedTaints = append(mergedTaints, k)
+	}
+	return sortTaints(taints)
+}
+
+func sortTaints(taints *[]string) *[]string {
+	if taints == nil {
+		return nil
+	}
+	sort.Sort(sort.StringSlice(*taints))
+	return taints
 }
 
 // Delete deletes the virtual network with the provided name.
