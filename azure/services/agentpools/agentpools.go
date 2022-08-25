@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/services/containerservice/mgmt/2021-05-01/containerservice"
@@ -105,8 +106,8 @@ func (s *Service) Reconcile(ctx context.Context) error {
 			return azure.WithTransientError(errors.New(msg), 20*time.Second)
 		}
 
-		taints := mergeTaints(existingPool.NodeTaints, profile.NodeTaints)
-		labels := mergeLabels(existingPool.NodeLabels, profile.NodeLabels)
+		profile.NodeTaints = mergeSystemTaints(existingPool.NodeTaints, profile.NodeTaints)
+		profile.NodeLabels = mergeSystemLabels(existingPool.NodeLabels, profile.NodeLabels)
 		// Normalize individual agent pools to diff in case we need to update
 		existingProfile := containerservice.AgentPool{
 			ManagedClusterAgentPoolProfileProperties: &containerservice.ManagedClusterAgentPoolProfileProperties{
@@ -129,8 +130,8 @@ func (s *Service) Reconcile(ctx context.Context) error {
 				EnableAutoScaling:   profile.EnableAutoScaling,
 				MinCount:            profile.MinCount,
 				MaxCount:            profile.MaxCount,
-				NodeLabels:          labels,
-				NodeTaints:          taints,
+				NodeLabels:          profile.NodeLabels,
+				NodeTaints:          profile.NodeTaints,
 			},
 		}
 
@@ -158,16 +159,20 @@ func (s *Service) Reconcile(ctx context.Context) error {
 	return nil
 }
 
-func mergeLabels(labels map[string]*string, labels2 map[string]*string) map[string]*string {
-	if labels == nil && labels2 == nil {
+// mergeSystemLabels merges the labels map by adding all existing labels with prefix kubernetes.azure.com to the desired
+// the goal is to not to remove the system taints
+func mergeSystemLabels(existing map[string]*string, desired map[string]*string) map[string]*string {
+	if existing == nil && desired == nil {
 		return nil
 	}
 	labelsMap := make(map[string]*string)
-	for k, v := range labels {
-		labelsMap[k] = v
+	for k, v := range existing {
+		if strings.Contains(k, "kubernetes.azure.com") {
+			labelsMap[k] = v
+		}
 	}
 
-	for k, v := range labels2 {
+	for k, v := range desired {
 		labelsMap[k] = v
 	}
 	return labelsMap
@@ -179,24 +184,30 @@ func (s *Service) updateManagedMachinePoolKubernetesVersion(existingPool contain
 	}
 }
 
-func mergeTaints(taints *[]string, taints2 *[]string) *[]string {
-	if taints == nil && taints2 == nil {
+func mergeSystemTaints(existing *[]string, desired *[]string) *[]string {
+	if existing == nil && desired == nil {
 		return nil
 	}
 	taintsMap := make(map[string]bool)
-	for _, taint := range *taints {
-		taintsMap[taint] = true
+	if existing != nil {
+		for _, taint := range *existing {
+			if strings.Contains(taint, "kubernetes.azure.com") {
+				taintsMap[taint] = true
+			}
+		}
 	}
 
-	for _, taint := range *taints2 {
-		taintsMap[taint] = true
+	if desired != nil {
+		for _, taint := range *desired {
+			taintsMap[taint] = true
+		}
 	}
 
 	mergedTaints := make([]string, 0)
 	for k, _ := range taintsMap {
 		mergedTaints = append(mergedTaints, k)
 	}
-	return sortTaints(taints)
+	return sortTaints(&mergedTaints)
 }
 
 func sortTaints(taints *[]string) *[]string {
